@@ -17,6 +17,7 @@
  */
 #include "sim65.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -52,6 +53,7 @@ static unsigned ilen[256] = {
 struct sim65s
 {
     unsigned debug;
+    unsigned error;
     struct sim65_reg r;
     unsigned char mem[MAXRAM];
     unsigned char mems[MAXRAM];
@@ -142,103 +144,99 @@ unsigned sim65_get_byte(sim65 s, unsigned addr)
     return s->mem[addr];
 }
 
-static int readPc(sim65 s, unsigned *out)
+void set_error(sim65 s, unsigned e)
+{
+    if( !s->error )
+        s->error = e;
+}
+
+static uint8_t readPc(sim65 s)
 {
     s->r.pc &= 0xFFFF;
     if (!(s->mems[s->r.pc] & ms_valid))
     {
         if (!(s->mems[s->r.pc]))
-            return err_exec_undef;
+            set_error( s, err_exec_undef );
         else
-            return err_exec_uninit;
+            set_error( s, err_exec_uninit );
     }
-    *out = s->mem[s->r.pc];
-    s->r.pc++;
-    return 0;
+    uint8_t ret = s->mem[s->r.pc];
+    s->r.pc = (s->r.pc + 1) & 0xFFFF;
+    return ret;
 }
 
-static int readByte(sim65 s, unsigned addr, unsigned *out)
+static uint8_t readByte(sim65 s, unsigned addr)
 {
     addr &= 0xFFFF;
     if (s->vec[addr])
     {
         int e = s->vec[addr](s, &s->r, addr, SIM65_CB_READ);
         if (e < 0)
-            return e;
-        *out = e;
-        return 0;
+            set_error( s, e );
+        return e;
     }
     if (!(s->mems[addr] & ms_valid))
     {
         if (!(s->mems[addr]))
-            return err_read_undef;
+            set_error( s, err_read_undef );
         else
         {
             fprintf(stderr, "err: reading uninitialized value at $%4X\n", addr);
-            //return err_read_uninit;
+            // set_error( s, err_read_uninit ); // Common enough!
             s->mems[addr] |= ms_valid;
         }
     }
-    *out = s->mem[addr];
-    return 0;
+    return s->mem[addr];
 }
 
-static int writeByte(sim65 s, unsigned addr, unsigned val)
+static void writeByte(sim65 s, unsigned addr, unsigned val)
 {
     addr &= 0xFFFF;
     if (s->vec[addr])
-        return s->vec[addr](s, &s->r, addr, val);
-    if (!s->mems[addr])
-        return err_write_undef;
-    if (s->mems[addr] & ms_rom)
-        return err_write_rom;
-    s->mem[addr] = val;
-    s->mems[addr] |= ms_valid;
-    return 0;
+    {
+        int e = s->vec[addr](s, &s->r, addr, val);
+        if (e)
+            set_error( s, e );
+    }
+    else if (!s->mems[addr])
+        set_error( s, err_write_undef );
+    else if (s->mems[addr] & ms_rom)
+        set_error( s, err_write_rom );
+    else
+    {
+        s->mem[addr] = val;
+        s->mems[addr] |= ms_valid;
+    }
 }
 
-static int readWord(sim65 s, unsigned addr, unsigned *out)
+static uint16_t readWord(sim65 s, unsigned addr)
 {
-    int e;
-    unsigned d1;
-    if (0 != (e = readByte(s, addr, out)))
-        return e;
-    if (0 != (e = readByte(s, addr + 1, &d1)))
-        return e;
-    *out |= d1 << 8;
-    return 0;
+    uint16_t d1 = readByte(s, addr);
+    return d1 | (readByte(s, addr + 1) << 8);
 }
 
-static int readIndX(sim65 s, unsigned addr, unsigned *out)
+static uint8_t readIndX(sim65 s, unsigned addr)
 {
-    int e;
-    if (0 != (e = readWord(s, (addr + s->r.x) & 0xFF, &addr)))
-        return e;
-    return readByte(s, addr, out);
+    addr = readWord(s, (addr + s->r.x) & 0xFF);
+    return readByte(s, addr);
 }
 
-static int readIndY(sim65 s, unsigned addr, unsigned *out)
+static int readIndY(sim65 s, unsigned addr)
 {
-    int e;
-    if (0 != (e = readWord(s, addr & 0xFF, &addr)))
-        return e;
-    return readByte(s, 0xFFFF & (addr + s->r.y), out);
+    addr = readWord(s, addr & 0xFF);
+    return readByte(s, 0xFFFF & (addr + s->r.y));
 }
 
-static int writeIndX(sim65 s, unsigned addr, unsigned val)
+static void writeIndX(sim65 s, unsigned addr, unsigned val)
 {
-    int e;
-    if (0 != (e = readWord(s, (addr + s->r.x) & 0xFF, &addr)))
-        return e;
-    return writeByte(s, addr, val);
+    addr = readWord(s, (addr + s->r.x) & 0xFF);
+    writeByte(s, addr, val);
 }
 
-static int writeIndY(sim65 s, unsigned addr, unsigned val)
+static void writeIndY(sim65 s, unsigned addr, unsigned val)
 {
-    int e;
-    if (0 != (e = readWord(s, addr & 0xFF, &addr)))
-        return e;
-    return writeByte(s, 0xFFFF & (addr + s->r.y), val);
+    addr = readWord(s, addr & 0xFF);
+    writeByte(s, 0xFFFF & (addr + s->r.y), val);
 }
 
 #define FLAG_C 0x01
@@ -332,23 +330,23 @@ static void do_sbc(sim65 s, unsigned val)
 
 #define ACCR   val = s->r.a
 #define ACCW   s->r.a = val
-#define ZP_R1  if ((e = readByte(s, data & 0xFF, &val))) return e
-#define ZP_W1  if ((e = writeByte(s, data & 0xFF, val))) return e
-#define ZPX_R  if ((e = readByte(s, (data + s->r.x) & 0xFF, &val))) return e
-#define ZPX_W  if ((e = writeByte(s, (data + s->r.x) & 0xFF, val))) return e
-#define ZPY_R  if ((e = readByte(s, (data + s->r.y) & 0xFF, &val))) return e
-#define ZPY_W  if ((e = writeByte(s, (data + s->r.y) & 0xFF, val))) return e
-#define ABS_R  if ((e = readByte(s, data, &val))) return e
-#define ABS_W  if ((e = writeByte(s, data, val))) return e
-#define ABX_R  if ((e = readByte(s, data + s->r.x, &val))) return e
-#define ABX_W  if ((e = writeByte(s, data + s->r.x, val))) return e
-#define ABY_R  if ((e = readByte(s, data + s->r.y, &val))) return e
-#define ABY_W  if ((e = writeByte(s, data + s->r.y, val))) return e
-#define IND_X(op)  if ((e = readIndX(s, data, &val))) return e; op
-#define IND_Y  if ((e = readIndY(s, data, &val))) return e
-#define INDW_X if ((e = writeIndX(s, data, val))) return e
-#define INDW_Y if ((e = writeIndY(s, data, val))) return e
-#define IND16  if ((e = readWord(s, data, &val))) return e;
+#define ZP_R1  val = readByte(s, data & 0xFF)
+#define ZP_W1  writeByte(s, data & 0xFF, val)
+#define ZPX_R  val = readByte(s, (data + s->r.x) & 0xFF)
+#define ZPX_W  writeByte(s, (data + s->r.x) & 0xFF, val)
+#define ZPY_R  val = readByte(s, (data + s->r.y) & 0xFF)
+#define ZPY_W  writeByte(s, (data + s->r.y) & 0xFF, val)
+#define ABS_R  val = readByte(s, data)
+#define ABS_W  writeByte(s, data, val)
+#define ABX_R  val = readByte(s, data + s->r.x)
+#define ABX_W  writeByte(s, data + s->r.x, val)
+#define ABY_R  val = readByte(s, data + s->r.y)
+#define ABY_W  writeByte(s, data + s->r.y, val)
+#define IND_X(op)  val = readIndX(s, data); op
+#define IND_Y  val = readIndY(s, data)
+#define INDW_X writeIndX(s, data, val)
+#define INDW_Y writeIndY(s, data, val)
+#define IND16  val = readWord(s, data)
 
 #define ORA s->r.a |= val; SETZ(s->r.a); SETN(s->r.a)
 #define AND s->r.a &= val; SETZ(s->r.a); SETN(s->r.a)
@@ -373,8 +371,8 @@ static void do_sbc(sim65 s, unsigned val)
 #define STX val = s->r.x
 #define STY val = s->r.y
 #define BRA s->r.pc = ((data & 0x80) ? s->r.pc + data - 0x100 : s->r.pc + data) & 0xFFFF
-#define PUSH if ((e = writeByte(s, 0x100 + s->r.s,val))) return e; s->r.s = (s->r.s - 1) & 0xFF
-#define POP  s->r.s = (s->r.s + 1) & 0xFF; if ((e=readByte(s, 0x100 + s->r.s, &val))) return e
+#define PUSH writeByte(s, 0x100 + s->r.s,val); s->r.s = (s->r.s - 1) & 0xFF
+#define POP  s->r.s = (s->r.s + 1) & 0xFF; val = readByte(s, 0x100 + s->r.s)
 
 // Complete ops
 #define ZP_R(op)   ZP_R1; op
@@ -384,15 +382,14 @@ static void do_sbc(sim65 s, unsigned val)
 
 #define BRA_0(a) if (!(s->r.p & a)) BRA
 #define BRA_1(a) if ((s->r.p & a)) BRA
-#define JSR if ((e = do_jsr(s, data))) return e
-#define RTS if ((e = do_rts(s))) return e
-#define RTI if ((e = do_rti(s))) return e
+#define JSR do_jsr(s, data)
+#define RTS do_rts(s)
+#define RTI do_rti(s)
 
 #define POP_P  POP; s->r.p = val | 0x30
 
-static int do_jsr(sim65 s, unsigned data)
+static void do_jsr(sim65 s, unsigned data)
 {
-    int e;
     unsigned val;
     s->r.pc = (s->r.pc - 1) & 0xFFFF;
     val = (s->r.pc & 0xFF00) >> 8;
@@ -400,24 +397,20 @@ static int do_jsr(sim65 s, unsigned data)
     val = s->r.pc & 0xFF;
     PUSH;
     s->r.pc = data;
-    return 0;
 }
 
-static int do_rts(sim65 s)
+static void do_rts(sim65 s)
 {
-    int e;
     unsigned val;
     POP;
     s->r.pc = val;
     POP;
     s->r.pc |= val << 8;
     s->r.pc = (s->r.pc + 1) & 0xFFFF;
-    return 0;
 }
 
-static int do_rti(sim65 s)
+static void do_rti(sim65 s)
 {
-    int e;
     unsigned val;
     POP_P;
     POP;
@@ -425,12 +418,10 @@ static int do_rti(sim65 s)
     POP;
     s->r.pc |= val << 8;
     s->r.pc = (s->r.pc) & 0xFFFF;
-    return 0;
 }
 
-static int next(sim65 s)
+static void next(sim65 s)
 {
-    int e;
     unsigned ins, data, val;
 
     // See if out vector
@@ -440,25 +431,17 @@ static int next(sim65 s)
     if (s->debug)
         sim65_print_reg(s);
 
-    if ((e = readPc(s, &ins)))
-        return e;
+    ins = readPc(s);
     if (ilen[ins] == 2)
-    {
-        if ((e = readPc(s, &data)))
-            return e;
-    }
+        data = readPc(s);
     else if (ilen[ins] == 3)
     {
-        unsigned d1;
-        if ((e = readPc(s, &data)))
-            return e;
-        if ((e = readPc(s, &d1)))
-            return e;
-        data |= d1 << 8;
+        data = readPc(s);
+        data |= readPc(s) << 8;
     }
     switch (ins)
     {
-        case 0x00:  return err_break;
+        case 0x00:  set_error( s, err_break ); break;
         case 0x01:  IND_X(ORA);             break;
         case 0x05:  ZP_R(ORA);              break;
         case 0x06:  ZP_RW(ASL);             break;
@@ -609,25 +592,24 @@ static int next(sim65 s)
         case 0xf9:  ABY_R;   SBC;           break;
         case 0xfd:  ABX_R;   SBC;           break;
         case 0xfe:  ABX_R;   INC;  ABX_W;   break;
-        default:    return err_invalid_ins;
+        default:    set_error( s, err_invalid_ins );
     }
-    return 0;
 }
 
 int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
 {
-    int e;
     if (regs)
         memcpy(&s->r, regs, sizeof(*regs));
 
+    s->error = 0;
     s->r.pc = addr;
-    while (!(e = next(s)))
-        ;
+    while (!s->error)
+        next(s);
 
     if (regs)
         memcpy(regs, &s->r, sizeof(*regs));
 
-    return e;
+    return s->error;
 }
 
 static void print_mem(char *buf, sim65 s, unsigned addr)
@@ -658,13 +640,6 @@ static void print_mem_count(char *buf, sim65 s, unsigned addr, unsigned len)
         print_mem(buf + i * 4, s, addr + i);
 }
 
-static unsigned getZW(sim65 s, unsigned addr)
-{
-    unsigned out;
-    readWord(s, addr & 0xFF, &out);
-    return out;
-}
-
 #define PNAME(name, str...)  memcpy(buf, name, 3); c = sprintf(buf+4, str)
 
 #define INSPRT_IMM(name) PNAME(name, "#$%02x",            data);
@@ -675,8 +650,8 @@ static unsigned getZW(sim65 s, unsigned addr)
 #define INSPRT_ZPG(name) PNAME(name, "$%02x",             data);
 #define INSPRT_ZPX(name) PNAME(name, "$%02x,X",           data);
 #define INSPRT_ZPY(name) PNAME(name, "$%02x,Y",           data);
-#define INSPRT_IDX(name) PNAME(name, "($%02x,X) [$%04x]", data, getZW(s, data + s->r.x));
-#define INSPRT_IDY(name) PNAME(name, "($%02x),Y [$%04x]", data, getZW(s, data) + s->r.y);
+#define INSPRT_IDX(name) PNAME(name, "($%02x,X) [$%04x]", data, readWord(s, data + s->r.x));
+#define INSPRT_IDY(name) PNAME(name, "($%02x),Y [$%04x]", data, readWord(s, data) + s->r.y);
 #define INSPRT_IND(name) PNAME(name, "($%04x)",           data);
 #define INSPRT_IMP(name) PNAME(name, "");
 #define INSPRT_ACC(name) PNAME(name, "A");
