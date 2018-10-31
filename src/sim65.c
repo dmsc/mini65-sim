@@ -16,8 +16,8 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "sim65.h"
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -147,7 +147,7 @@ unsigned sim65_get_byte(sim65 s, unsigned addr)
 
 void set_error(sim65 s, unsigned e)
 {
-    if( !s->error )
+    if (!s->error)
         s->error = e;
 }
 
@@ -157,9 +157,9 @@ static uint8_t readPc(sim65 s)
     if (!(s->mems[s->r.pc] & ms_valid))
     {
         if (!(s->mems[s->r.pc]))
-            set_error( s, err_exec_undef );
+            set_error(s, err_exec_undef);
         else
-            set_error( s, err_exec_uninit );
+            set_error(s, err_exec_uninit);
     }
     uint8_t ret = s->mem[s->r.pc];
     s->r.pc = (s->r.pc + 1) & 0xFFFF;
@@ -173,17 +173,17 @@ static uint8_t readByte(sim65 s, unsigned addr)
     {
         int e = s->vec[addr](s, &s->r, addr, SIM65_CB_READ);
         if (e < 0)
-            set_error( s, e );
+            set_error(s, e);
         return e;
     }
     if (!(s->mems[addr] & ms_valid))
     {
         if (!(s->mems[addr]))
-            set_error( s, err_read_undef );
+            set_error(s, err_read_undef);
         else
         {
             fprintf(stderr, "err: reading uninitialized value at $%4X\n", addr);
-            // set_error( s, err_read_uninit ); // Common enough!
+            // set_error(s, err_read_uninit); // Common enough!
             s->mems[addr] |= ms_valid;
         }
     }
@@ -197,12 +197,12 @@ static void writeByte(sim65 s, unsigned addr, unsigned val)
     {
         int e = s->vec[addr](s, &s->r, addr, val);
         if (e)
-            set_error( s, e );
+            set_error(s, e);
     }
     else if (!s->mems[addr])
-        set_error( s, err_write_undef );
+        set_error(s, err_write_undef);
     else if (s->mems[addr] & ms_rom)
-        set_error( s, err_write_rom );
+        set_error(s, err_write_rom);
     else
     {
         s->mem[addr] = val;
@@ -227,8 +227,8 @@ static int readIndY(sim65 s, unsigned addr)
 {
     s->cycles += 5;
     addr = readWord(s, addr & 0xFF);
-    if( ((addr & 0xFF) + s->r.y) > 0xFF )
-        s->cycles ++;
+    if (((addr & 0xFF) + s->r.y) > 0xFF)
+        s->cycles++;
     return readByte(s, 0xFFFF & (addr + s->r.y));
 }
 
@@ -335,8 +335,8 @@ static void do_sbc(sim65 s, unsigned val)
     }
 }
 
-#define ZP_R1  val = readByte(s, data & 0xFF)
-#define ZP_W1  writeByte(s, data & 0xFF, val)
+#define ZP_R1   val = readByte(s, data & 0xFF)
+#define ZP_W1   writeByte(s, data & 0xFF, val)
 #define ZPX_R1  val = readByte(s, (data + s->r.x) & 0xFF)
 #define ZPX_W1  writeByte(s, (data + s->r.x) & 0xFF, val)
 #define ZPY_R1  val = readByte(s, (data + s->r.y) & 0xFF)
@@ -376,7 +376,7 @@ static void do_sbc(sim65 s, unsigned val)
 #define STA val = s->r.a
 #define STX val = s->r.x
 #define STY val = s->r.y
-#define BRA { s->cycles ++; val = ((data & 0x80) ? s->r.pc + data - 0x100 : s->r.pc + data) & 0xFFFF; if ((val & 0xFF00) != (s->r.pc & 0xFF00)) s->cycles++; s->r.pc = val; }
+#define BRA { s->cycles++; val = ((data & 0x80) ? s->r.pc + data - 0x100 : s->r.pc + data) & 0xFFFF; if ((val & 0xFF00) != (s->r.pc & 0xFF00)) s->cycles++; s->r.pc = val; }
 #define PUSH(val) s->cycles += 3; writeByte(s, 0x100 + s->r.s,val); s->r.s = (s->r.s - 1) & 0xFF
 #define POP  s->r.s = (s->r.s + 1) & 0xFF; val = readByte(s, 0x100 + s->r.s)
 
@@ -396,12 +396,12 @@ static void do_sbc(sim65 s, unsigned val)
 #define ZPY_R(op)   s->cycles += 4; ZPY_R1; op
 #define ZPY_W(op)   s->cycles += 4; op; ZPY_W1
 
-#define CC_X        if (((data & 0xFF) + s->r.x) > 0xFF) s->cycles ++;
+#define CC_X        if (((data & 0xFF) + s->r.x) > 0xFF) s->cycles++;
 #define ABX_R(op)   s->cycles += 4; CC_X; ABX_R1; op
 #define ABX_W(op)   s->cycles += 5; op; ABX_W1
 #define ABX_RW(op)  s->cycles += 7; ABX_R1; op; ABX_W1
 
-#define CC_Y        if (((data & 0xFF) + s->r.y) > 0xFF) s->cycles ++;
+#define CC_Y        if (((data & 0xFF) + s->r.y) > 0xFF) s->cycles++;
 #define ABY_R(op)   s->cycles += 4; CC_Y; ABY_R1; op
 #define ABY_W(op)   s->cycles += 5; op; ABY_W1
 
@@ -428,8 +428,8 @@ static void do_jsr(sim65 s, unsigned data)
 {
     unsigned val;
     s->r.pc = (s->r.pc - 1) & 0xFFFF;
-    PUSH( s->r.pc >> 8 );
-    PUSH( s->r.pc );
+    PUSH(s->r.pc >> 8);
+    PUSH(s->r.pc);
     s->r.pc = data;
 }
 
@@ -477,11 +477,11 @@ static void next(sim65 s)
     }
     switch (ins)
     {
-        case 0x00:  set_error( s, err_break ); break;
+        case 0x00:  set_error(s, err_break); break;
         case 0x01:  IND_X(ORA);             break;
         case 0x05:  ZP_R(ORA);              break;
         case 0x06:  ZP_RW(ASL);             break;
-        case 0x08:  PUSH( s->r.p );         break; // PHP
+        case 0x08:  PUSH(s->r.p);           break; // PHP
         case 0x09:  IMM(ORA);               break;
         case 0x0A:  IMP_A(ASL);             break;
         case 0x0D:  ABS_R(ORA);             break;
@@ -517,7 +517,7 @@ static void next(sim65 s)
         case 0x41:  IND_X(EOR);             break;
         case 0x45:  ZP_R(EOR);              break;
         case 0x46:  ZP_RW(LSR);             break;
-        case 0x48:  PUSH( s->r.a );         break; // PHA
+        case 0x48:  PUSH(s->r.a);           break; // PHA
         case 0x49:  IMM(EOR);               break;
         case 0x4a:  IMP_A(LSR);             break;
         case 0x4c:  JMP();                  break; // JMP
@@ -628,7 +628,7 @@ static void next(sim65 s)
         case 0xf9:  ABY_R(SBC);             break;
         case 0xfd:  ABX_R(SBC);             break;
         case 0xfe:  ABX_RW(INC);            break;
-        default:    set_error( s, err_invalid_ins );
+        default:    set_error(s, err_invalid_ins);
     }
 }
 
