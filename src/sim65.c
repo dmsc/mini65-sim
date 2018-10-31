@@ -426,7 +426,6 @@ static void do_sbc(sim65 s, unsigned val)
 
 static void do_jsr(sim65 s, unsigned data)
 {
-    unsigned val;
     s->r.pc = (s->r.pc - 1) & 0xFFFF;
     PUSH(s->r.pc >> 8);
     PUSH(s->r.pc);
@@ -648,15 +647,54 @@ int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
     return s->error;
 }
 
+static const char *hex_digits = "0123456789ABCDEF";
+static char *hex2(char *c, uint8_t x)
+{
+    c[0] = hex_digits[x >> 4];
+    c[1] = hex_digits[x & 15];
+    return c + 2;
+}
+
+static char *hex4(char *c, uint16_t x)
+{
+    c[0] = hex_digits[x >> 12];
+    c[1] = hex_digits[(x >> 8) & 15];
+    c[2] = hex_digits[(x >> 4) & 15];
+    c[3] = hex_digits[x & 15];
+    return c + 4;
+}
+
+static char *hex7(char *c, uint32_t x)
+{
+    c[0] = hex_digits[(x >> 24) & 15];
+    c[1] = hex_digits[(x >> 20) & 15];
+    c[2] = hex_digits[(x >> 16) & 15];
+    c[3] = hex_digits[(x >> 12) & 15];
+    c[4] = hex_digits[(x >> 8) & 15];
+    c[5] = hex_digits[(x >> 4) & 15];
+    c[6] = hex_digits[x & 15];
+    return c + 7;
+}
+
 static void print_mem(char *buf, sim65 s, unsigned addr)
 {
     addr &= 0xFFFF;
     if (s->mems[addr] & ms_valid)
     {
         if (s->mems[addr] & ms_ram)
-            sprintf(buf, "[%02X]", s->mem[addr]);
+        {
+            buf[0] = '[';
+            hex2(buf + 1, s->mem[addr]);
+            buf[3] = '[';
+            buf[4] = 0;
+        }
         else
-            sprintf(buf, "{%02X}", s->mem[addr]);
+        {
+            buf[0] = '{';
+            hex2(buf + 1, s->mem[addr]);
+            buf[3] = '}';
+            buf[4] = 0;
+        }
     }
     else if (s->mems[addr])
         memcpy(buf, "[UU]", 4);
@@ -676,21 +714,26 @@ static void print_mem_count(char *buf, sim65 s, unsigned addr, unsigned len)
         print_mem(buf + i * 4, s, addr + i);
 }
 
-#define PNAME(name, str...)  memcpy(buf, name, 3); c = sprintf(buf+4, str)
 
-#define INSPRT_IMM(name) PNAME(name, "#$%02x",            data);
-#define INSPRT_BRA(name) PNAME(name, "$%04x",             s->r.pc + 2 + (signed char)data);
-#define INSPRT_ABS(name) PNAME(name, "$%04x",             data);
-#define INSPRT_ABX(name) PNAME(name, "$%04x,X",           data);
-#define INSPRT_ABY(name) PNAME(name, "$%04x,Y",           data);
-#define INSPRT_ZPG(name) PNAME(name, "$%02x",             data);
-#define INSPRT_ZPX(name) PNAME(name, "$%02x,X",           data);
-#define INSPRT_ZPY(name) PNAME(name, "$%02x,Y",           data);
-#define INSPRT_IDX(name) PNAME(name, "($%02x,X) [$%04x]", data, readWord(s, data + s->r.x));
-#define INSPRT_IDY(name) PNAME(name, "($%02x),Y [$%04x]", data, readWord(s, data) + s->r.y);
-#define INSPRT_IND(name) PNAME(name, "($%04x)",           data);
-#define INSPRT_IMP(name) PNAME(name, "");
-#define INSPRT_ACC(name) PNAME(name, "A");
+#define PSTR(str) memcpy(buf, str, strlen(str)); buf += strlen(str)
+#define PHX2(val) buf = hex2(buf, val)
+#define PHX4(val) buf = hex4(buf, val)
+#define PHX7(val) buf = hex7(buf, val)
+#define PNAM(name)  PSTR(name); buf++;
+
+#define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
+#define INSPRT_BRA(name) PNAM(name); PSTR("$"); PHX4( s->r.pc + 2 + (signed char)data)
+#define INSPRT_ABS(name) PNAM(name); PSTR("$"); PHX4(data)
+#define INSPRT_ABX(name) PNAM(name); PSTR("$"); PHX4(data); PSTR(",X")
+#define INSPRT_ABY(name) PNAM(name); PSTR("$"); PHX4(data); PSTR(",Y")
+#define INSPRT_ZPG(name) PNAM(name); PSTR("$"); PHX2(data)
+#define INSPRT_ZPX(name) PNAM(name); PSTR("$"); PHX2(data); PSTR(",X")
+#define INSPRT_ZPY(name) PNAM(name); PSTR("$"); PHX2(data); PSTR(",Y")
+#define INSPRT_IDX(name) PNAM(name); PSTR("($"); PHX2(data); PSTR(",X) [$"); PHX4(readWord(s, 0xFF & (data + s->r.x))); PSTR("]")
+#define INSPRT_IDY(name) PNAM(name); PSTR("($"); PHX2(data); PSTR("),Y [$"); PHX4(readWord(s, data) + s->r.y); PSTR("]")
+#define INSPRT_IND(name) PNAM(name); PSTR("($"); PHX4(data); PSTR(") [$"); PHX4(readWord(s, data)); PSTR("]")
+#define INSPRT_IMP(name) PNAM(name)
+#define INSPRT_ACC(name) PNAM(name); PSTR("A")
 
 static void print_curr_ins(char *buf, sim65 s)
 {
@@ -701,6 +744,12 @@ static void print_curr_ins(char *buf, sim65 s)
     else if (ilen[ins] == 3)
         data = s->mem[(1 + s->r.pc) & 0xFFFF] + (s->mem[(2 + s->r.pc) & 0xFFFF] << 8);
     memset(buf, ' ', 30);
+    buf[21] = ';';
+    c = ilen[ins];
+    print_mem_count(buf + 23, s, s->r.pc, c);
+    buf[23 + c * 4] = '\n';
+    buf[24 + c * 4] = 0;
+
     switch (ins)
     {
         case 0x00: INSPRT_IMP("BRK"); break;
@@ -960,19 +1009,26 @@ static void print_curr_ins(char *buf, sim65 s)
         case 0xFE: INSPRT_ABX("INC"); break;
         case 0xFF: INSPRT_ABX("isc"); break;
     }
-    buf[4 + c] = ' ';
-    buf[21] = ';';
-    c = ilen[ins];
-    print_mem_count(buf + 23, s, s->r.pc, c);
-    buf[23 + c * 4] = '\n';
-    buf[24 + c * 4] = 0;
 }
 
 void sim65_print_reg(sim65 s)
 {
-    char buf[128];
-    sprintf(buf, "%07X: A=%02X X=%02X Y=%02X P=%02X S=%02X PC=%04X : ", // 44 chars
-            s->cycles, s->r.a, s->r.x, s->r.y, s->r.p, s->r.s, s->r.pc);
-    print_curr_ins(buf + 44, s);
-    fputs(buf, stderr);
+    char buffer[128];
+    char *buf = buffer;
+    PHX7(s->cycles);
+    PSTR(": A=");
+    PHX2(s->r.a);
+    PSTR(" X=");
+    PHX2(s->r.x);
+    PSTR(" Y=");
+    PHX2(s->r.y);
+    PSTR(" P=");
+    PHX2(s->r.p);
+    PSTR(" S=");
+    PHX2(s->r.s);
+    PSTR(" PC=");
+    PHX4(s->r.pc);
+    PSTR(" : ");
+    print_curr_ins(buf, s);
+    fputs(buffer, stderr);
 }
