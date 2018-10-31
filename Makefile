@@ -19,7 +19,7 @@ $(BDIR)/atarisim: $(OBJS) | $(BDIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 $(ODIR)/%.o: src/%.c | $(ODIR)
-	$(CC) $(CLFAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(BDIR):
 $(ODIR):
