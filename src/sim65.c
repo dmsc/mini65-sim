@@ -685,7 +685,7 @@ static void print_mem(char *buf, sim65 s, unsigned addr)
         {
             buf[0] = '[';
             hex2(buf + 1, s->mem[addr]);
-            buf[3] = '[';
+            buf[3] = ']';
             buf[4] = 0;
         }
         else
