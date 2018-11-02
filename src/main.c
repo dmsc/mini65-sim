@@ -209,7 +209,7 @@ static void print_help(const char *name)
     fprintf(stderr, "Usage: %s [options] <filename>\n"
                     "Options:\n"
                     " -h: Show this help\n"
-                    " -t: Print simulation trace\n",
+                    " -t: Print simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n",
             name);
 }
