@@ -54,7 +54,7 @@ static unsigned dpeek(sim65 s, unsigned addr)
 static void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb)
 {
     unsigned char rts = 0x60;
-    sim65_add_callback_range(s, addr, len, cb);
+    sim65_add_callback_range(s, addr, len, cb, sim65_cb_exec);
     for (; len > 0; addr++, len--)
         sim65_add_data_rom(s, addr, &rts, 1);
 }
@@ -800,7 +800,8 @@ int abios_init(sim65 s)
     // Math Package
     fp_init(s);
     // Random OS addresses
-    sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK);
+    sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_read);
+    sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_write);
     poke(s, 8, 0); // WARM START
     poke(s, 17, 0x80); // BREAK key not pressed
     dpoke(s, 10, 0x0); // DOSVEC, go to DOS vector, use 0 as simulation return
@@ -816,7 +817,7 @@ int abios_init(sim65 s)
     dpoke(s, 0x5E, 0xC000); // Store an invalid value in OLDADR, to catch
         // programs writing to the screen directly.
     poke(s, 0x6A, 0xC0); // RAMTOP
-    sim65_add_callback_range(s, 0xC000, 1024, catch_OLDADR_write);
+    sim65_add_callback_range(s, 0xC000, 1024, catch_OLDADR_write, sim65_cb_write);
     poke(s, 0x2be, 64); // SHFLOK
 
     return 0;

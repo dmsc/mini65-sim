@@ -39,6 +39,13 @@ struct sim65_reg
     unsigned char a, x, y, p, s;
 };
 
+enum sim65_cb_type
+{
+    sim65_cb_read,
+    sim65_cb_write,
+    sim65_cb_exec
+};
+
 #define SIM65_CB_READ -1
 #define SIM65_CB_EXEC -2
 /// Callback from the simulator:
@@ -52,10 +59,11 @@ struct sim65_reg
 /// Returns <0 on error, value to read in case of read-callback.
 typedef int (*sim65_callback)(sim65 s, struct sim65_reg *regs, unsigned addr, int data);
 
-/// Adds a callback at the given address
-void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb);
-/// Adds a callback at the given address range
-void sim65_add_callback_range(sim65 s, unsigned addr, unsigned len, sim65_callback cb);
+/// Adds a callback at the given address of the given type
+void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb, enum sim65_cb_type type);
+/// Adds a callback at the given address range of the given type
+void sim65_add_callback_range(sim65 s, unsigned addr, unsigned len,
+                              sim65_callback cb, enum sim65_cb_type type);
 
 /// Reads from simulation state.
 unsigned sim65_get_byte(sim65 s, unsigned addr);

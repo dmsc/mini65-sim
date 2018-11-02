@@ -204,10 +204,14 @@ static int sim_antic(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 static void init_atari_hardware(sim65 s)
 {
     // HW registers
-    sim65_add_callback_range(s, 0xD000, 0x100, sim_gtia);
-    sim65_add_callback_range(s, 0xD200, 0x100, sim_pokey);
-    sim65_add_callback_range(s, 0xD300, 0x100, sim_pia);
-    sim65_add_callback_range(s, 0xD400, 0x100, sim_antic);
+    sim65_add_callback_range(s, 0xD000, 0x100, sim_gtia, sim65_cb_read);
+    sim65_add_callback_range(s, 0xD200, 0x100, sim_pokey, sim65_cb_read);
+    sim65_add_callback_range(s, 0xD300, 0x100, sim_pia, sim65_cb_read);
+    sim65_add_callback_range(s, 0xD400, 0x100, sim_antic, sim65_cb_read);
+    sim65_add_callback_range(s, 0xD000, 0x100, sim_gtia, sim65_cb_write);
+    sim65_add_callback_range(s, 0xD200, 0x100, sim_pokey, sim65_cb_write);
+    sim65_add_callback_range(s, 0xD300, 0x100, sim_pia, sim65_cb_write);
+    sim65_add_callback_range(s, 0xD400, 0x100, sim_antic, sim65_cb_write);
 }
 
 static void print_help(const char *name)

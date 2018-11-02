@@ -56,9 +56,11 @@ struct sim65s
     unsigned error;
     unsigned cycles;
     struct sim65_reg r;
-    unsigned char mem[MAXRAM];
-    unsigned char mems[MAXRAM];
-    sim65_callback vec[MAXRAM];
+    uint8_t mem[MAXRAM];
+    uint8_t mems[MAXRAM];
+    sim65_callback cb_read[MAXRAM];
+    sim65_callback cb_write[MAXRAM];
+    sim65_callback cb_exec[MAXRAM];
 };
 
 sim65 sim65_new()
@@ -122,18 +124,30 @@ void sim65_add_data_rom(sim65 s, unsigned addr, const unsigned char *data, unsig
     }
 }
 
-void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb)
+void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb, enum sim65_cb_type type)
 {
     if (addr >= MAXRAM)
         return;
-    s->vec[addr] = cb;
+    switch (type)
+    {
+        case sim65_cb_read:
+            s->cb_read[addr] = cb;
+            break;
+        case sim65_cb_write:
+            s->cb_write[addr] = cb;
+            break;
+        case sim65_cb_exec:
+            s->cb_exec[addr] = cb;
+            break;
+    }
 }
 
-void sim65_add_callback_range(sim65 s, unsigned addr, unsigned len, sim65_callback cb)
+void sim65_add_callback_range(sim65 s, unsigned addr, unsigned len, sim65_callback cb,
+                              enum sim65_cb_type type)
 {
     unsigned i;
     for (i = addr; i < addr + len && i < MAXRAM; i++)
-        sim65_add_callback(s, i, cb);
+        sim65_add_callback(s, i, cb, type);
 }
 
 unsigned sim65_get_byte(sim65 s, unsigned addr)
@@ -169,9 +183,9 @@ static uint8_t readPc(sim65 s)
 static uint8_t readByte(sim65 s, unsigned addr)
 {
     addr &= 0xFFFF;
-    if (s->vec[addr])
+    if (s->cb_read[addr])
     {
-        int e = s->vec[addr](s, &s->r, addr, SIM65_CB_READ);
+        int e = s->cb_read[addr](s, &s->r, addr, SIM65_CB_READ);
         if (e < 0)
             set_error(s, e);
         return e;
@@ -193,9 +207,9 @@ static uint8_t readByte(sim65 s, unsigned addr)
 static void writeByte(sim65 s, unsigned addr, unsigned val)
 {
     addr &= 0xFFFF;
-    if (s->vec[addr])
+    if (s->cb_write[addr])
     {
-        int e = s->vec[addr](s, &s->r, addr, val);
+        int e = s->cb_write[addr](s, &s->r, addr, val);
         if (e)
             set_error(s, e);
     }
@@ -460,8 +474,15 @@ static void next(sim65 s)
     unsigned ins, data, val;
 
     // See if out vector
-    if (s->vec[s->r.pc])
-        s->vec[s->r.pc](s, &s->r, s->r.pc, SIM65_CB_EXEC);
+    if (s->cb_exec[s->r.pc])
+    {
+        int err = s->cb_exec[s->r.pc](s, &s->r, s->r.pc, SIM65_CB_EXEC);
+        if (err)
+        {
+            set_error(s, err);
+            return;
+        }
+    }
 
     if (s->debug)
         sim65_print_reg(s);
