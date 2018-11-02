@@ -9,6 +9,7 @@ all: $(BDIR)/atarisim
 
 SRC=\
  src/abios.c\
+ src/hw.c\
  src/main.c\
  src/mathpack.c\
  src/sim65.c\
@@ -27,7 +28,7 @@ $(ODIR):
 
 
 $(ODIR)/abios.o: src/abios.c src/abios.h src/sim65.h src/mathpack.h
-$(ODIR)/main.o: src/main.c src/sim65.h src/abios.h
+$(ODIR)/hw.o: src/hw.c src/hw.h src/sim65.h
+$(ODIR)/main.o: src/main.c src/abios.h src/sim65.h src/hw.h
 $(ODIR)/mathpack.o: src/mathpack.c src/mathpack.h src/sim65.h src/mathpack_bin.h
 $(ODIR)/sim65.o: src/sim65.c src/sim65.h
-
