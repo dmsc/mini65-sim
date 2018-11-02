@@ -192,9 +192,6 @@ static int cio_ok(sim65 s, struct sim65_reg *r, unsigned acc)
 
 static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
-
     if (regs->x & 0x0F || regs->x > 0x80)
         return cio_error(s, regs, "invalid value of X register", 134);
 
@@ -396,8 +393,6 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
     fprintf(stderr, "IOCB NOT OPEN\n");
     regs->y = 0x83;
     regs->p |= 0x80;
@@ -407,8 +402,6 @@ static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     static int last_row = 0;
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -459,8 +452,6 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -490,8 +481,6 @@ static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_KEYBD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -526,8 +515,6 @@ static int sim_KEYBD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_PRINT(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -551,8 +538,6 @@ static int sim_PRINT(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_CASET(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -578,9 +563,6 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // Store one file handle for each CIO channel
     static FILE *fhand[16];
-
-    if (data != SIM65_CB_EXEC)
-        return cb_error(addr);
 
     // We need IOCB data
     unsigned chn  = (regs->x >> 4);
@@ -709,16 +691,13 @@ static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     static int startTime;
 
-    if (data == SIM65_CB_EXEC)
-        return cb_error(addr);
-
     // Get current time
     struct timeval tv;
     gettimeofday(&tv, 0);
     int curTime   = (int)(fmod(tv.tv_sec * 60 + tv.tv_usec * 0.00006, 16777216.));
     int atariTime = curTime - startTime;
 
-    if (data == SIM65_CB_READ)
+    if (data == sim65_cb_read)
     {
         if (addr == 0x12)
             return 0xFF & (atariTime >> 16);
@@ -742,10 +721,7 @@ static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int catch_OLDADR_write(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (data == SIM65_CB_EXEC)
-        return cb_error(addr);
-
-    if (data == SIM65_CB_READ)
+    if (data == sim65_cb_read)
         return 0;
 
     fprintf(stderr, "screen write $%02X (%d)\n", data, addr - 0xE000);

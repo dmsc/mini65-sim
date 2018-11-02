@@ -41,22 +41,20 @@ struct sim65_reg
 
 enum sim65_cb_type
 {
-    sim65_cb_read,
-    sim65_cb_write,
-    sim65_cb_exec
+    sim65_cb_write = 0,
+    sim65_cb_read = -1,
+    sim65_cb_exec = -2
 };
 
-#define SIM65_CB_READ -1
-#define SIM65_CB_EXEC -2
-/// Callback from the simulator:
-/// s: sim65 state
-/// regs: simulator register values before the instruction
-/// addr: address of memory causing the callback
-/// data: type of callback:
-///  SIM65_CB_READ = read memory
-///  SIM65_CB_EXEC = execute address
-///  other value   = write memory, data is the value to write.
-/// Returns <0 on error, value to read in case of read-callback.
+/** Callback from the simulator.
+ * @param s sim65 state.
+ * @param regs simulator register values before the instruction.
+ * @param addr address of memory causing the callback.
+ * @param data type of callback:
+ *             sim65_cb_read = read memory
+ *             sim65_cb_exec = execute address
+ *             other value   = write memory, data is the value to write.
+ * @returns <0 on error, value to read in case of read-callback. */
 typedef int (*sim65_callback)(sim65 s, struct sim65_reg *regs, unsigned addr, int data);
 
 /// Adds a callback at the given address of the given type

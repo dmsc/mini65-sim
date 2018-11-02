@@ -186,7 +186,7 @@ static uint8_t readByte(sim65 s, unsigned addr)
     addr &= 0xFFFF;
     if (s->cb_read[addr])
     {
-        int e = s->cb_read[addr](s, &s->r, addr, SIM65_CB_READ);
+        int e = s->cb_read[addr](s, &s->r, addr, sim65_cb_read);
         if (e < 0)
             set_error(s, e);
         return e;
@@ -477,7 +477,7 @@ static void next(sim65 s)
     // See if out vector
     if (s->cb_exec[s->r.pc])
     {
-        int err = s->cb_exec[s->r.pc](s, &s->r, s->r.pc, SIM65_CB_EXEC);
+        int err = s->cb_exec[s->r.pc](s, &s->r, s->r.pc, sim65_cb_exec);
         if (err)
         {
             set_error(s, err);

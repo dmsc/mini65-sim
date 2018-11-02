@@ -108,7 +108,7 @@ static int read_xex_file(sim65 s, const char *name)
     } while (1);
 }
 
-static int sim_exec_error(unsigned addr)
+static int sim_exec_error(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     fprintf(stderr, "Invalid exec address $%04x\n", addr);
     return -1;
@@ -117,10 +117,7 @@ static int sim_exec_error(unsigned addr)
 static int sim_gtia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // addr & 0x1F
-    if (data == SIM65_CB_EXEC)
-        return sim_exec_error(addr);
-
-    if (data == SIM65_CB_READ)
+    if (data == sim65_cb_read)
     {
         switch (addr - 0xD000)
         {
@@ -155,10 +152,7 @@ static int rand32()
 static int sim_pokey(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // addr & 0x0F
-    if (data == SIM65_CB_EXEC)
-        return sim_exec_error(addr);
-
-    if (data == SIM65_CB_READ)
+    if (data == sim65_cb_read)
     {
         if (addr == 0xD20A)
         {
@@ -178,10 +172,7 @@ static int sim_pokey(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 static int sim_pia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // addr & 0x03
-    if (data == SIM65_CB_EXEC)
-        return sim_exec_error(addr);
-
-    if (data == SIM65_CB_READ)
+    if (data == sim65_cb_read)
         fprintf(stderr, "Read PIA $%04x\n", addr);
     else
         fprintf(stderr, "Write PIA $%04x <- $%02x\n", addr, data);
@@ -191,10 +182,7 @@ static int sim_pia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 static int sim_antic(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // addr & 0x0F
-    if (data == SIM65_CB_EXEC)
-        return sim_exec_error(addr);
-
-    if (data == SIM65_CB_READ)
+    if (data == sim65_cb_read)
         fprintf(stderr, "Read ANTIC $%04x\n", addr);
     else
         fprintf(stderr, "Write ANTIC $%04x <- $%02x\n", addr, data);
@@ -212,6 +200,8 @@ static void init_atari_hardware(sim65 s)
     sim65_add_callback_range(s, 0xD200, 0x100, sim_pokey, sim65_cb_write);
     sim65_add_callback_range(s, 0xD300, 0x100, sim_pia, sim65_cb_write);
     sim65_add_callback_range(s, 0xD400, 0x100, sim_antic, sim65_cb_write);
+    // Error out on EXEC to HW range
+    sim65_add_callback_range(s, 0xD000, 0x7FF, sim_exec_error, sim65_cb_exec);
 }
 
 static void print_help(const char *name)
