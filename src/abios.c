@@ -803,6 +803,7 @@ int abios_init(sim65 s)
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK);
     poke(s, 8, 0); // WARM START
     poke(s, 17, 0x80); // BREAK key not pressed
+    dpoke(s, 10, 0x0); // DOSVEC, go to DOS vector, use 0 as simulation return
     dpoke(s, 14, 0x800); // APPHI, lowest usable RAM area
     dpoke(s, 0x2e5, 0xC000); // MEMTOP
     dpoke(s, 0x2e7, 0x700); // MEMLO
