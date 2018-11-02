@@ -721,16 +721,17 @@ static char *hex4(char *c, uint16_t x)
     return c + 4;
 }
 
-static char *hex7(char *c, uint32_t x)
+static char *hex8(char *c, uint32_t x)
 {
-    c[0] = hex_digits[(x >> 24) & 15];
-    c[1] = hex_digits[(x >> 20) & 15];
-    c[2] = hex_digits[(x >> 16) & 15];
-    c[3] = hex_digits[(x >> 12) & 15];
-    c[4] = hex_digits[(x >> 8) & 15];
-    c[5] = hex_digits[(x >> 4) & 15];
-    c[6] = hex_digits[x & 15];
-    return c + 7;
+    c[0] = hex_digits[(x >> 28) & 15];
+    c[1] = hex_digits[(x >> 24) & 15];
+    c[2] = hex_digits[(x >> 20) & 15];
+    c[3] = hex_digits[(x >> 16) & 15];
+    c[4] = hex_digits[(x >> 12) & 15];
+    c[5] = hex_digits[(x >> 8) & 15];
+    c[6] = hex_digits[(x >> 4) & 15];
+    c[7] = hex_digits[x & 15];
+    return c + 8;
 }
 
 static void print_mem(char *buf, sim65 s, unsigned addr)
@@ -775,7 +776,6 @@ static void print_mem_count(char *buf, sim65 s, unsigned addr, unsigned len)
 #define PSTR(str) memcpy(buf, str, strlen(str)); buf += strlen(str)
 #define PHX2(val) buf = hex2(buf, val)
 #define PHX4(val) buf = hex4(buf, val)
-#define PHX7(val) buf = hex7(buf, val)
 #define PNAM(name)  PSTR(name); buf++;
 
 #define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
@@ -1072,7 +1072,7 @@ void sim65_print_reg(sim65 s)
 {
     char buffer[128];
     char *buf = buffer;
-    PHX7(s->cycles);
+    buf = hex8(buf, s->cycles);
     PSTR(": A=");
     PHX2(s->r.a);
     PSTR(" X=");
