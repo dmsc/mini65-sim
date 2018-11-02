@@ -190,24 +190,6 @@ static int cio_ok(sim65 s, struct sim65_reg *r, unsigned acc)
     return cio_exit(s, r);
 }
 
-// Calls the emulator at given code, ends on RTS
-static void call_code(sim65 s, struct sim65_reg *regs, unsigned addr)
-{
-    unsigned old_pc = regs->pc;
-    // Use 0xFFF1 as return address
-    poke(s, 0xFFF1, 0);
-    // PUSH 0xFF
-    poke(s, 0x100 + regs->s, 0xFF);
-    regs->s = (regs->s - 1) & 0xFF;
-    // PUSH 0x00
-    poke(s, 0x100 + regs->s, 0x00);
-    regs->s = (regs->s - 1) & 0xFF;
-    // RUN!!
-    sim65_run(s, 0, addr + 1);
-    // Now, return to old address
-    regs->pc = old_pc;
-}
-
 static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     if (data != SIM65_CB_EXEC)
@@ -274,7 +256,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 poke(s, IC(HID), i);
                 dpoke(s, IC(PTL), dpeek(s, devtab + 6));
                 // Found, call open
-                call_code(s, regs, dpeek(s, devtab));
+                sim65_call(s, regs, dpeek(s, devtab));
                 return cio_exit(s, regs);
             }
         }
@@ -288,7 +270,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         for (;;)
         {
             // Get single
-            call_code(s, regs, dpeek(s, devtab + 4));
+            sim65_call(s, regs, dpeek(s, devtab + 4));
             poke(s, 0x2F, regs->a);
             if (regs->y & 0x80)
                 break;
@@ -310,7 +292,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         if (!blen)
         {
             // Get single
-            call_code(s, regs, dpeek(s, devtab + 4));
+            sim65_call(s, regs, dpeek(s, devtab + 4));
             poke(s, 0x2F, regs->a);
             return cio_exit(s, regs);
         }
@@ -319,7 +301,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             while (blen)
             {
                 // get
-                call_code(s, regs, dpeek(s, devtab + 4));
+                sim65_call(s, regs, dpeek(s, devtab + 4));
                 if (regs->y & 0x80)
                     break;
                 poke(s, badr, regs->a);
@@ -340,7 +322,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             // Put single
             regs->a = 0x9B;
             poke(s, 0x2F, regs->a);
-            call_code(s, regs, dpeek(s, devtab + 6));
+            sim65_call(s, regs, dpeek(s, devtab + 6));
             return cio_exit(s, regs);
         }
         else
@@ -349,7 +331,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             {
                 regs->a = peek(s, badr);
                 poke(s, 0x2F, regs->a);
-                call_code(s, regs, dpeek(s, devtab + 6));
+                sim65_call(s, regs, dpeek(s, devtab + 6));
                 if (regs->y & 0x80)
                     break;
                 badr++;
@@ -369,7 +351,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         {
             // Put single
             poke(s, 0x2F, regs->a);
-            call_code(s, regs, dpeek(s, devtab + 6));
+            sim65_call(s, regs, dpeek(s, devtab + 6));
             return cio_exit(s, regs);
         }
         else
@@ -378,7 +360,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             {
                 regs->a = peek(s, badr);
                 poke(s, 0x2F, regs->a);
-                call_code(s, regs, dpeek(s, devtab + 6));
+                sim65_call(s, regs, dpeek(s, devtab + 6));
                 if (regs->y & 0x80)
                     break;
                 badr++;
@@ -395,7 +377,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         if (GET_IC(HID) != 0xFF)
         {
             // Call close handler
-            call_code(s, regs, dpeek(s, devtab + 2));
+            sim65_call(s, regs, dpeek(s, devtab + 2));
         }
         sim65_add_data_ram(s, IC(HID), iocv_empty, 16);
         return cio_ok(s, regs, 0);

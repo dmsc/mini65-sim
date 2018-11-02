@@ -37,6 +37,7 @@
 #define err_write_rom    6
 #define err_break        7
 #define err_invalid_ins  8
+#define err_call_ret     9
 
 // Instruction lengths
 static unsigned ilen[256] = {
@@ -666,6 +667,41 @@ int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
         memcpy(regs, &s->r, sizeof(*regs));
 
     return s->error;
+}
+
+// Called on return from simulated code
+static int sim65_rts_callback(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    return err_call_ret;
+}
+
+// Calls the emulator at given code, ends on RTS
+int sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
+{
+    // Setup registers if given
+    if (regs)
+        memcpy(&s->r, regs, sizeof(*regs));
+
+    // Save original PC
+    unsigned old_pc = s->r.pc;
+
+    // Use 0 as return address
+    s->r.pc = 0;
+    sim65_add_callback(s, 0, sim65_rts_callback, sim65_cb_exec);
+
+    // Execute a JSR
+    do_jsr(s, addr);
+
+    // And continue the emulator
+    int err = sim65_run(s, 0, addr);
+
+    // Now, return to old address
+    s->r.pc = old_pc;
+
+    if (err == err_call_ret)
+        return 0;
+    else
+        return err;
 }
 
 static const char *hex_digits = "0123456789ABCDEF";

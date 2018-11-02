@@ -72,5 +72,13 @@ unsigned sim65_get_byte(sim65 s, unsigned addr);
 /// If regs is NULL, initializes the registers to zero.
 int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr);
 
+/// Calls the simulation.
+/// Simulates a call via a JSR to the given address, pushing a (fake) return address
+/// to the stack and returning on the matching RTS.
+/// If regs is NULL, initializes the registers to zero.
+/// @returns 0 if exit through the RTS, non 0 when stops at BRK, a callback
+///          returning != 0 or execution errors.
+int sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
+
 /// Prints the current register values
 void sim65_print_reg(sim65 s);

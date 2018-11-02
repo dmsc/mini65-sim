@@ -300,7 +300,7 @@ int main(int argc, char **argv)
             exit_error("missing start address", argv[0]);
     }
     // start
-    e = sim65_run(s, 0, start);
+    e = sim65_call(s, 0, start);
     sim65_print_reg(s);
     printf("Simulation returns: %d\n", e);
     return 0;
