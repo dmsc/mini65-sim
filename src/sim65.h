@@ -17,6 +17,8 @@
  */
 #pragma once
 
+#include <stdint.h>
+
 typedef struct sim65s *sim65;
 
 /// Creates new simulator state, with no address regions defined.
@@ -35,8 +37,8 @@ void sim65_set_debug(sim65 s, unsigned level);
 /// Struct used to pass the register values
 struct sim65_reg
 {
-    unsigned pc;
-    unsigned char a, x, y, p, s;
+    uint16_t pc;
+    uint8_t a, x, y, p, s;
 };
 
 enum sim65_cb_type

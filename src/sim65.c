@@ -16,6 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "sim65.h"
+#include <likely.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,9 +25,10 @@
 #define MAXRAM (0x10000)
 
 // Memory status codes
-#define ms_ram    1
-#define ms_rom    2
-#define ms_valid  4
+#define ms_undef    1
+#define ms_rom      2
+#define ms_invalid  4
+#define ms_callback 8
 
 // Simulator errors
 #define err_exec_undef   1
@@ -40,7 +42,7 @@
 #define err_call_ret     9
 
 // Instruction lengths
-static unsigned ilen[256] = {
+static uint8_t ilen[256] = {
     1,2,1,1,1,2,2,1,1,2,1,1,1,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
     3,2,1,1,2,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
     1,2,1,1,1,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
@@ -69,6 +71,7 @@ sim65 sim65_new()
     sim65 s = calloc(sizeof(struct sim65s), 1);
     s->r.s = 0xFF;
     s->r.p = 0x34;
+    memset(s->mems, ms_undef | ms_invalid, MAXRAM * sizeof(s->mems[0]));
     return s;
 }
 
@@ -80,7 +83,7 @@ void sim65_add_ram(sim65 s, unsigned addr, unsigned len)
     if (end >= MAXRAM)
         end = MAXRAM;
     for (; addr < end; addr++)
-        s->mems[addr] |= ms_ram;
+        s->mems[addr] &= ~ms_undef;
 }
 
 void sim65_add_zeroed_ram(sim65 s, unsigned addr, unsigned len)
@@ -92,7 +95,7 @@ void sim65_add_zeroed_ram(sim65 s, unsigned addr, unsigned len)
         end = MAXRAM;
     for (; addr < end; addr++)
     {
-        s->mems[addr] = ms_ram | ms_valid;
+        s->mems[addr] &= ~(ms_undef | ms_rom | ms_invalid);
         s->mem[addr] = 0;
     }
 }
@@ -106,7 +109,7 @@ void sim65_add_data_ram(sim65 s, unsigned addr, const unsigned char *data, unsig
         end = MAXRAM;
     for (; addr < end; addr++, data++)
     {
-        s->mems[addr] = ms_ram | ms_valid;
+        s->mems[addr] &= ~(ms_undef | ms_rom | ms_invalid);
         s->mem[addr] = *data;
     }
 }
@@ -120,7 +123,8 @@ void sim65_add_data_rom(sim65 s, unsigned addr, const unsigned char *data, unsig
         end = MAXRAM;
     for (; addr < end; addr++, data++)
     {
-        s->mems[addr] = ms_rom | ms_valid;
+        s->mems[addr] &= ~(ms_undef | ms_invalid);
+        s->mems[addr] |= ms_rom;
         s->mem[addr] = *data;
     }
 }
@@ -129,6 +133,7 @@ void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb, enum sim65_cb
 {
     if (addr >= MAXRAM)
         return;
+    s->mems[addr] |= ms_callback;
     switch (type)
     {
         case sim65_cb_read:
@@ -155,7 +160,7 @@ unsigned sim65_get_byte(sim65 s, unsigned addr)
 {
     if (addr >= MAXRAM)
         return 0x100;
-    if (!(s->mems[addr] & ms_valid))
+    if (s->mems[addr] & ms_invalid)
         return 0x100;
     return s->mem[addr];
 }
@@ -166,66 +171,79 @@ void set_error(sim65 s, unsigned e)
         s->error = e;
 }
 
-static uint8_t readPc(sim65 s)
+static uint8_t readPc_slow(sim65 s, uint16_t addr)
 {
-    s->r.pc &= 0xFFFF;
-    if (!(s->mems[s->r.pc] & ms_valid))
-    {
-        if (!(s->mems[s->r.pc]))
-            set_error(s, err_exec_undef);
-        else
-            set_error(s, err_exec_uninit);
-    }
-    uint8_t ret = s->mem[s->r.pc];
-    s->r.pc = (s->r.pc + 1) & 0xFFFF;
-    return ret;
+    if (s->mems[addr] & ms_undef)
+        set_error(s, err_exec_undef);
+    else
+        set_error(s, err_exec_uninit);
+    return s->mem[addr];
 }
 
-static uint8_t readByte(sim65 s, unsigned addr)
+static inline uint8_t readPc(sim65 s, unsigned offset)
 {
-    addr &= 0xFFFF;
-    if (s->cb_read[addr])
+    uint16_t addr = s->r.pc + offset;
+    return likely(!(s->mems[addr] & ~(ms_rom | ms_callback))) ?
+           s->mem[addr] : readPc_slow(s, addr);
+}
+
+static uint8_t readByte_slow(sim65 s, uint16_t addr)
+{
+    // Unusual memory
+    if ((s->mems[addr] & ms_callback) && s->cb_read[addr])
     {
         int e = s->cb_read[addr](s, &s->r, addr, sim65_cb_read);
         if (e < 0)
             set_error(s, e);
         return e;
     }
-    if (!(s->mems[addr] & ms_valid))
+    else
     {
-        if (!(s->mems[addr]))
+        if (s->mems[addr] & ms_undef)
             set_error(s, err_read_undef);
         else
         {
             fprintf(stderr, "err: reading uninitialized value at $%4X\n", addr);
             // set_error(s, err_read_uninit); // Common enough!
-            s->mems[addr] |= ms_valid;
+            s->mems[addr] &= ~ms_invalid;
         }
+        return s->mem[addr];
     }
-    return s->mem[addr];
 }
 
-static void writeByte(sim65 s, unsigned addr, unsigned val)
+static inline uint8_t readByte(sim65 s, uint16_t addr)
 {
-    addr &= 0xFFFF;
-    if (s->cb_write[addr])
+    return likely(!(s->mems[addr] & ~ms_rom)) ? s->mem[addr] : readByte_slow(s, addr);
+}
+
+static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
+{
+    if (likely(!(s->mems[addr] & ~ms_invalid)))
+    {
+        s->mem[addr] = val;
+        s->mems[addr] = 0;
+    }
+    else if ((s->mems[addr] & ms_callback) && s->cb_write[addr])
     {
         int e = s->cb_write[addr](s, &s->r, addr, val);
         if (e)
             set_error(s, e);
     }
-    else if (!s->mems[addr])
+    else if (s->mems[addr] & ms_undef)
         set_error(s, err_write_undef);
     else if (s->mems[addr] & ms_rom)
         set_error(s, err_write_rom);
-    else
-    {
-        s->mem[addr] = val;
-        s->mems[addr] |= ms_valid;
-    }
 }
 
-static uint16_t readWord(sim65 s, unsigned addr)
+static inline void writeByte(sim65 s, uint16_t addr, uint8_t val)
+{
+    if (likely(!(s->mems[addr])))
+        s->mem[addr] = val;
+    else
+        writeByte_slow(s, addr, val);
+}
+
+static inline uint16_t readWord(sim65 s, uint16_t addr)
 {
     uint16_t d1 = readByte(s, addr);
     return d1 | (readByte(s, addr + 1) << 8);
@@ -242,7 +260,7 @@ static int readIndY(sim65 s, unsigned addr)
 {
     s->cycles += 5;
     addr = readWord(s, addr & 0xFF);
-    if (((addr & 0xFF) + s->r.y) > 0xFF)
+    if (unlikely(((addr & 0xFF) + s->r.y) > 0xFF))
         s->cycles++;
     return readByte(s, 0xFFFF & (addr + s->r.y));
 }
@@ -488,14 +506,17 @@ static void next(sim65 s)
     if (s->debug)
         sim65_print_reg(s);
 
-    ins = readPc(s);
-    if (ilen[ins] == 2)
-        data = readPc(s);
-    else if (ilen[ins] == 3)
-    {
-        data = readPc(s);
-        data |= readPc(s) << 8;
-    }
+    // Read instruction and data
+    ins = readPc(s, 0);
+    if (ilen[ins] > 1)
+        data = readPc(s, 1);
+
+    if (ilen[ins] > 2)
+        data |= readPc(s, 2) << 8;
+
+    // Update PC
+    s->r.pc += ilen[ins];
+
     switch (ins)
     {
         case 0x00:  set_error(s, err_break); break;
@@ -737,9 +758,9 @@ static char *hex8(char *c, uint32_t x)
 static void print_mem(char *buf, sim65 s, unsigned addr)
 {
     addr &= 0xFFFF;
-    if (s->mems[addr] & ms_valid)
+    if (!(s->mems[addr] & ms_invalid))
     {
-        if (s->mems[addr] & ms_ram)
+        if (!(s->mems[addr] & ms_rom))
         {
             buf[0] = '[';
             hex2(buf + 1, s->mem[addr]);
@@ -754,7 +775,7 @@ static void print_mem(char *buf, sim65 s, unsigned addr)
             buf[4] = 0;
         }
     }
-    else if (s->mems[addr])
+    else if (s->mems[addr] & ms_undef)
         memcpy(buf, "[UU]", 4);
     else
         memcpy(buf, "[NN]", 4);

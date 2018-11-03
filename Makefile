@@ -1,5 +1,6 @@
 CC=gcc
-CFLAGS=-O6 -Wall -g -flto
+INCLUDES=-Iccan
+CFLAGS=$(INCLUDES) -O3 -Wall -g -flto
 LDLIBS=-lm
 
 BDIR=build
