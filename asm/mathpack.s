@@ -162,6 +162,10 @@ postsign:
 	
 	;set dot flag
 	ror		dotflag
+
+	;increment anchor so we don't count the dot as a digit for purposes
+	;of seeing if we got any digits
+	inc		cix0
 	
 	;skip zeroes and adjust exponent
 	lda		#'0'
@@ -964,14 +968,14 @@ fpconst_ln10:
 .proc fdiv
 _digit = _fr3+1
 _index = _fr3+2
-	;check if dividend is zero
-	lda		fr0
-	beq		ok
-	
 	;check if divisor is zero
 	lda		fr1
 	beq		err
 
+	;check if dividend is zero
+	lda		fr0
+	beq		ok
+	
 	;compute new exponent
 	jsr		fp_adjust_exponent.fdiv_entry
 
@@ -1559,34 +1563,18 @@ exp10 = exp._exp10
 	ckaddr	$ddcc
 _exp10:
 	;stash sign and compute abs
-	asl		fr0
-	ror		_fptemp1
-	lsr		fr0
+	lda		fr0
+	sta		_fptemp1
+	and		#$7f
+	sta		fr0
 
 	ldy		#0
 	
 	;check for |exp| >= 100 which would guarantee over/underflow
-	sec
-	sbc		#$40
+	cmp		#$40
 	bcc		abs_ok
-	bne		abs_too_big
-	
-	;|exp|>=1, so split it into integer/fraction
-	lda		fr0+1
-	jsr		fp_dectobin
-	adc		fp_dectobin_tab,y
-	tay
+	beq		abs_large
 
-	dec		fr0
-	ldx		#<-4
-frac_loop:
-	lda		fr0+6,x
-	sta		fr0+5,x
-	inx
-	bne		frac_loop
-	stx		fr0+5
-	beq		abs_ok
-	
 abs_too_big:
 	;okay, the |x| is too big... check if the original was negative.
 	;if so, zero and exit, otherwise error.
@@ -1594,7 +1582,20 @@ abs_too_big:
 	bpl		err2
 	clc
 	jmp		zfr0
-		
+
+abs_large:	
+	;|exp|>=1, so split it into integer/fraction
+	lda		fr0+1
+	jsr		fp_dectobin
+	adc		fp_dectobin_tab,y
+	pha
+	lda		#0
+	sta		fr0+1
+	sta		fr0+6
+	jsr		fp_normalize
+	pla
+	tay
+			
 abs_ok:
 	;stash integer portion of exponent
 	sty		_fptemp0
@@ -1618,7 +1619,7 @@ even:
 	lda		_fptemp0
 	adc		fr0
 	cmp		#64+49
-	bcs		err2
+	bcs		abs_too_big
 	sta		fr0
 	
 	;check if we should invert
