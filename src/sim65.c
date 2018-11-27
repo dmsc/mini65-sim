@@ -455,7 +455,7 @@ static void do_sbc(sim65 s, unsigned val)
 #define SE_F(f)   s->cycles += 2; s->r.p |= f
 
 #define POP_P  s->cycles += 4; POP; s->r.p = val | 0x30
-#define POP_A  s->cycles += 4; POP; s->r.a = val
+#define POP_A  s->cycles += 4; POP; LDA
 
 static void do_jsr(sim65 s, unsigned data)
 {
