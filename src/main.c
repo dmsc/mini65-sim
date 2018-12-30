@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 static void print_help(const char *name)
 {
@@ -34,7 +35,9 @@ static void print_help(const char *name)
 
 static void print_error(const char *text, const char *name)
 {
-    fprintf(stderr, "%s: %s, try '-h' for help.\n", name, text);
+    if (text)
+        fprintf(stderr, "%s: %s\n", name, text);
+    fprintf(stderr,"%s: Try '-h' for help.\n", name);
     exit(1);
 }
 
@@ -47,40 +50,36 @@ static void exit_error(const char *text, const char *name)
 int main(int argc, char **argv)
 {
     sim65 s;
-    int start, i;
+    int start, opt;
     char *fname       = 0;
     enum sim65_debug dbgLevel = sim65_debug_none;
     unsigned rom      = 0;
-    for (i = 1; i < argc; i++)
+    while ((opt = getopt(argc, argv, "tdhr:")) != -1)
     {
-        if (argv[i][0] == '-')
+        switch (opt)
         {
-            if (argv[i][1] == 't') // trace
+            case 't': // trace
                 dbgLevel = sim65_debug_trace;
-            else if (argv[i][1] == 'd') // debug
+                break;
+            case 'd': // debug
                 dbgLevel = dbgLevel != sim65_debug_none ? dbgLevel : sim65_debug_messages;
-            else if (argv[i][1] == 'h') // help
-            {
+                break;
+            case 'h': // help
                 print_help(argv[0]);
                 return 0;
-            }
-            else if (argv[i][1] == 'r') // load rom
-            {
-                if (i + 1 == argc)
-                    print_error("option -r expects argument (rom address)", argv[0]);
-                i++;
-                rom = strtol(argv[i], 0, 0);
-            }
-            else
-                print_error("invalid option", argv[0]);
+            case 'r': // rom address
+                rom = strtol(optarg, 0, 0);
+                break;
+            default:
+                print_error(0, argv[0]);
         }
-        else if (!fname)
-            fname = argv[i];
-        else
-            print_error("only one filename allowed", argv[0]);
     }
-    if (!fname)
+
+    if (optind >= argc)
         print_error("missing filename", argv[0]);
+    else if (optind + 1 != argc)
+        print_error("only one filename allowed", argv[0]);
+    fname = argv[optind];
 
     s = sim65_new();
     if (!s)
