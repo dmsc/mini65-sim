@@ -15,99 +15,11 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#include "abios.h"
-#include "hw.h"
+#include "atari.h"
 #include "sim65.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-static int read_rom_file(sim65 s, int addr, const char *name)
-{
-    int c, saddr = addr;
-    FILE *f = fopen(name, "rb");
-    if (!f)
-        return -1;
-
-    while (EOF != (c = getc(f)))
-    {
-        unsigned char data = c;
-        sim65_add_data_rom(s, addr++, &data, 1);
-    }
-    return addr - saddr;
-}
-
-static int read_xex_file(sim65 s, const char *name)
-{
-    int state = 0, saddr = 0, eaddr = 0, start = 0, loadad = 0, runad = 0;
-    FILE *f = fopen(name, "rb");
-    if (!f)
-        return -1;
-    do
-    {
-        unsigned char data;
-        int c = getc(f);
-        if (c == EOF)
-        {
-            if (start)
-                return start;
-            else if (runad)
-                return runad;
-            else
-                return loadad;
-        }
-        switch (state)
-        {
-            case 0:
-            case 1:
-                if (c != 0xFF)
-                    return -1;
-                break;
-            case 2:
-                saddr = c;
-                break;
-            case 3:
-                loadad = saddr |= c << 8;
-                if (!runad)
-                    runad = loadad;
-                break;
-            case 4:
-                eaddr = c;
-                break;
-            case 5:
-                eaddr |= c << 8;
-                break;
-            case 6:
-                data = c;
-                sim65_add_data_ram(s, saddr, &data, 1);
-                if (saddr == 0x02E0)
-                    start = (start & 0xFF00) | data;
-                else if (saddr == 0x02E1)
-                    start = (start & 0xFF) | (data << 8);
-                if (saddr == 0x02E2)
-                    runad = (runad & 0xFF00) | data;
-                else if (saddr == 0x02E3)
-                    runad = (runad & 0xFF) | (data << 8);
-                if (saddr != eaddr)
-                {
-                    saddr++;
-                    continue;
-                }
-                break;
-            case 7:
-                saddr = c;
-                break;
-            case 8:
-                saddr |= c << 8;
-                if (saddr == 0xFFFF)
-                    state = 2;
-                else
-                    state = 4;
-                continue;
-        }
-        state++;
-    } while (1);
-}
 
 static void print_help(const char *name)
 {
@@ -170,25 +82,24 @@ int main(int argc, char **argv)
     s = sim65_new();
     if (!s)
         exit_error("internal error", argv[0]);
+
     // Set debug level
     sim65_set_debug(s, dbgLevel);
-    // Add 64k of uninitialized ram
-    sim65_add_ram(s, 0, 0x10000);
-    // Needed for atari emu
-    atari_hardware_init(s);
-    abios_init(s);
+
+    // Initialize Atari emu
+    atari_init(s);
 
     // Read file
     if (rom)
     {
-        int l = read_rom_file(s, rom, fname);
+        int l = atari_rom_load(s, rom, fname);
         if (l < 0)
             exit_error("error reading ROM file", argv[0]);
         start = rom;
     }
     else
     {
-        start = read_xex_file(s, fname);
+        start = atari_xex_load(s, fname);
         if (start < 0)
             exit_error("error reading binary file", argv[0]);
         if (!start)

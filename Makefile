@@ -9,7 +9,7 @@ ODIR=$(BDIR)/obj
 all: $(BDIR)/atarisim
 
 SRC=\
- src/abios.c\
+ src/atari.c\
  src/hw.c\
  src/main.c\
  src/mathpack.c\
@@ -28,8 +28,8 @@ $(ODIR):
 	mkdir -p $@
 
 
-$(ODIR)/abios.o: src/abios.c src/abios.h src/sim65.h src/mathpack.h
+$(ODIR)/atari.o: src/atari.c src/atari.h src/sim65.h src/mathpack.h
 $(ODIR)/hw.o: src/hw.c src/hw.h src/sim65.h
-$(ODIR)/main.o: src/main.c src/abios.h src/sim65.h src/hw.h
+$(ODIR)/main.o: src/main.c src/atari.h src/sim65.h src/hw.h
 $(ODIR)/mathpack.o: src/mathpack.c src/mathpack.h src/sim65.h src/mathpack_bin.h
 $(ODIR)/sim65.o: src/sim65.c src/sim65.h

@@ -15,8 +15,10 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
-#include "abios.h"
+#include "atari.h"
 #include "mathpack.h"
+#include "hw.h"
+#include "sim65.h"
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -728,7 +730,7 @@ static int catch_OLDADR_write(sim65 s, struct sim65_reg *regs, unsigned addr, in
     return 0;
 }
 
-int abios_init(sim65 s)
+static void atari_bios_init(sim65 s)
 {
     unsigned i;
     // Adds 32 bytes of zeroed RAM at $80
@@ -773,10 +775,105 @@ int abios_init(sim65 s)
     dpoke(s, 0x58, 0xC000); // Simulated screen pointer
     poke(s, 0x5D, 0); // OLDCH
     dpoke(s, 0x5E, 0xC000); // Store an invalid value in OLDADR, to catch
-        // programs writing to the screen directly.
+                            // programs writing to the screen directly.
     poke(s, 0x6A, 0xC0); // RAMTOP
     sim65_add_callback_range(s, 0xC000, 1024, catch_OLDADR_write, sim65_cb_write);
     poke(s, 0x2be, 64); // SHFLOK
+}
 
-    return 0;
+void atari_init(sim65 s)
+{
+    // Add 64k of uninitialized ram
+    sim65_add_ram(s, 0, 0x10000);
+    // Add hardware handlers
+    atari_hardware_init(s);
+    // Add ROM handlers
+    atari_bios_init(s);
+}
+
+int atari_xex_load(sim65 s, const char *name)
+{
+    int state = 0, saddr = 0, eaddr = 0, start = 0, loadad = 0, runad = 0;
+    FILE *f = fopen(name, "rb");
+    if (!f)
+        return -1;
+    do
+    {
+        unsigned char data;
+        int c = getc(f);
+        if (c == EOF)
+        {
+            if (start)
+                return start;
+            else if (runad)
+                return runad;
+            else
+                return loadad;
+        }
+        switch (state)
+        {
+            case 0:
+            case 1:
+                if (c != 0xFF)
+                    return -1;
+                break;
+            case 2:
+                saddr = c;
+                break;
+            case 3:
+                loadad = saddr |= c << 8;
+                if (!runad)
+                    runad = loadad;
+                break;
+            case 4:
+                eaddr = c;
+                break;
+            case 5:
+                eaddr |= c << 8;
+                break;
+            case 6:
+                data = c;
+                sim65_add_data_ram(s, saddr, &data, 1);
+                if (saddr == 0x02E0)
+                    start = (start & 0xFF00) | data;
+                else if (saddr == 0x02E1)
+                    start = (start & 0xFF) | (data << 8);
+                if (saddr == 0x02E2)
+                    runad = (runad & 0xFF00) | data;
+                else if (saddr == 0x02E3)
+                    runad = (runad & 0xFF) | (data << 8);
+                if (saddr != eaddr)
+                {
+                    saddr++;
+                    continue;
+                }
+                break;
+            case 7:
+                saddr = c;
+                break;
+            case 8:
+                saddr |= c << 8;
+                if (saddr == 0xFFFF)
+                    state = 2;
+                else
+                    state = 4;
+                continue;
+        }
+        state++;
+    } while (1);
+}
+
+int atari_rom_load(sim65 s, int addr, const char *name)
+{
+    int c, saddr = addr;
+    FILE *f = fopen(name, "rb");
+    if (!f)
+        return -1;
+
+    while (EOF != (c = getc(f)))
+    {
+        unsigned char data = c;
+        sim65_add_data_rom(s, addr++, &data, 1);
+    }
+    return addr - saddr;
 }
