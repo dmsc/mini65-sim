@@ -21,7 +21,7 @@
 typedef struct sim65s *sim65;
 
 // Init bios callbacks
-void atari_init(sim65 s);
+void atari_init(sim65 s, int load_labels);
 // Load XEX file
 int atari_xex_load(sim65 s, const char *name);
 // Load ROM file

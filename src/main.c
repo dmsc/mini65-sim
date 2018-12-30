@@ -97,7 +97,7 @@ int main(int argc, char **argv)
         sim65_lbl_load(s, lblname);
 
     // Initialize Atari emu
-    atari_init(s);
+    atari_init(s, lblname != 0);
 
     // Read file
     if (rom)

@@ -793,7 +793,256 @@ static void atari_bios_init(sim65 s)
     poke(s, 0x2be, 64); // SHFLOK
 }
 
-void atari_init(sim65 s)
+
+static const struct
+{
+    const char *lbl;
+    unsigned addr;
+} atari_labels[] = {
+
+    { "WARMST",   0x08 }, // WARM START FLAG
+    { "BOOTQ",    0x09 }, // SUCCESSFUL BOOT FLAG
+    { "DOSVEC",   0x0A }, // DISK SOFTWARE START VECTOR
+    { "DOSINI",   0x0C }, // DISK SOFTWARE INIT ADDRESS
+    { "APPMHI",   0x0E }, // APPLICATIONS MEMORY HI LIMIT
+
+    { "POKMSK",   0x10 }, // SYSTEM MASK FOR POKEY IRQ ENABLE (shadow of IRQEN)
+    { "BRKKEY",   0x11 }, // BREAK KEY FLAG
+    { "RTCLOK",   0x12 }, // REAL TIME CLOCK (IN 16 MSEC UNITS>
+    { "BUFADR",   0x15 }, // INDIRECT BUFFER ADDRESS REGISTER
+    { "ICCOMT",   0x17 }, // COMMAND FOR VECTOR
+    { "DSKFMS",   0x18 }, // DISK FILE MANAGER POINTER
+    { "DSKUTL",   0x1A }, // DISK UTILITIES POINTER
+    { "ABUFPT",   0x1C }, // ##1200xl## 4-byte ACMI buffer pointer area
+
+    { "IOCBAS",   0x20 }, // 16-byte page zero IOCB
+    { "ICHIDZ",   0x20 }, // HANDLER INDEX NUMBER (FF = IOCB FREE)
+    { "ICDNOZ",   0x21 }, // DEVICE NUMBER (DRIVE NUMBER)
+    { "ICCOMZ",   0x22 }, // COMMAND CODE
+    { "ICSTAZ",   0x23 }, // STATUS OF LAST IOCB ACTION
+    { "ICBALZ",   0x24 }, // BUFFER ADDRESS LOW BYTE
+    { "ICBAHZ",   0x25 }, // 1-byte high buffer address
+    { "ICPTLZ",   0x26 }, // PUT BYTE ROUTINE ADDRESS -1
+    { "ICPTHZ",   0x27 }, // 1-byte high PUT-BYTE routine address
+    { "ICBLLZ",   0x28 }, // BUFFER LENGTH LOW BYTE
+    { "ICBLHZ",   0x29 }, // 1-byte high buffer length
+    { "ICAX1Z",   0x2A }, // AUXILIARY INFORMATION FIRST BYTE
+    { "ICAX2Z",   0x2B }, // 1-byte second auxiliary information
+    { "ICSPRZ",   0x2C }, // 4-byte spares
+    { "ICIDNO",   0x2E }, // IOCB NUMBER X 16
+    { "CIOCHR",   0x2F }, // CHARACTER BYTE FOR CURRENT OPERATION
+
+    { "CRITIC",   0x42 }, // DEFINES CRITICAL SECTION (CRITICAL IF NON-Z)
+
+    { "ATRACT",   0x4D }, // ATRACT FLAG
+    { "DRKMSK",   0x4E }, // DARK ATRACT MASK
+    { "COLRSH",   0x4F }, // ATRACT COLOR SHIFTER (EOR'ED WITH PLAYFIELD
+
+    { "LMARGN",   0x52 }, // left margin (normally 2, cc65 C startup code sets it to 0)
+    { "RMARGN",   0x53 }, // right margin (normally 39 if no XEP80 is used)
+    { "ROWCRS",   0x54 }, // 1-byte cursor row
+    { "COLCRS",   0x55 }, // 2-byte cursor column
+    { "DINDEX",   0x57 }, // 1-byte display mode
+    { "SAVMSC",   0x58 }, // 2-byte saved memory scan counter
+    { "OLDROW",   0x5A }, // 1-byte prior row
+    { "OLDCOL",   0x5B }, // 2-byte prior column
+    { "OLDCHR",   0x5D }, // DATA UNDER CURSOR
+    { "OLDADR",   0x5E }, // 2-byte saved cursor memory address
+
+    { "RAMTOP",   0x6A }, // RAM SIZE DEFINED BY POWER ON LOGIC
+
+    { "FR0",      0xD4 }, // 6-byte register 0
+    { "FR0+1",    0xD5 }, // 6-byte register 0
+    { "FR0+2",    0xD6 }, // 6-byte register 0
+    { "FR0+3",    0xD7 }, // 6-byte register 0
+    { "FR0+4",    0xD8 }, // 6-byte register 0
+    { "FR0+5",    0xD9 }, // 6-byte register 0
+    { "FRE",      0xDA }, // 6-byte (internal) register E
+
+    { "FR1",      0xE0 }, // FP REG1
+    { "FR1+1",    0xE1 }, // FP REG1
+    { "FR1+2",    0xE2 }, // FP REG1
+    { "FR1+3",    0xE3 }, // FP REG1
+    { "FR1+4",    0xE4 }, // FP REG1
+    { "FR1+5",    0xE5 }, // FP REG1
+
+    { "FR2",      0xE6 }, // 6-byte (internal) register 2
+
+    { "CIX",      0xF2 }, // CURRENT INPUT INDEX
+    { "INBUFF",   0xF3 }, // POINTS TO USER'S LINE INPUT BUFFER
+    { "INBUFF+1", 0xF4 }, // POINTS TO USER'S LINE INPUT BUFFER
+
+    // Most of the following are not used in the simulator,
+    // but included anyway for debugging.
+
+    { "VDSLST", 0x0200 }, // DISPLAY LIST NMI VECTOR
+    { "VPRCED", 0x0202 }, // PROCEED LINE IRQ VECTOR
+    { "VINTER", 0x0204 }, // INTERRUPT LINE IRQ VECTOR
+    { "VBREAK", 0x0206 }, // SOFTWARE BREAK (00) INSTRUCTION IRQ VECTOR
+    { "VKEYBD", 0x0208 }, // POKEY KEYBOARD IRQ VECTOR
+    { "VSERIN", 0x020A }, // POKEY SERIAL INPUT READY IRQ
+    { "VSEROR", 0x020C }, // POKEY SERIAL OUTPUT READY IRQ
+    { "VSEROC", 0x020E }, // POKEY SERIAL OUTPUT COMPLETE IRQ
+    { "VTIMR1", 0x0210 }, // POKEY TIMER 1 IRQ
+    { "VTIMR2", 0x0212 }, // POKEY TIMER 2 IRQ
+    { "VTIMR4", 0x0214 }, // POKEY TIMER 4 IRQ
+    { "VIMIRQ", 0x0216 }, // IMMEDIATE IRQ VECTOR
+    { "CDTMV1", 0x0218 }, // COUNT DOWN TIMER 1
+    { "CDTMV2", 0x021A }, // COUNT DOWN TIMER 2
+    { "CDTMV3", 0x021C }, // COUNT DOWN TIMER 3
+    { "CDTMV4", 0x021E }, // COUNT DOWN TIMER 4
+    { "CDTMV5", 0x0220 }, // COUNT DOWN TIMER 5
+    { "VVBLKI", 0x0222 }, // IMMEDIATE VERTICAL BLANK NMI VECTOR
+    { "VVBLKD", 0x0224 }, // DEFERRED VERTICAL BLANK NMI VECTOR
+    { "CDTMA1", 0x0226 }, // COUNT DOWN TIMER 1 JSR ADDRESS
+    { "CDTMA2", 0x0228 }, // COUNT DOWN TIMER 2 JSR ADDRESS
+    { "CDTMF3", 0x022A }, // COUNT DOWN TIMER 3 FLAG
+    { "SRTIMR", 0x022B }, // SOFTWARE REPEAT TIMER
+    { "CDTMF4", 0x022C }, // COUNT DOWN TIMER 4 FLAG
+
+    { "SDMCTL", 0x022F }, // SAVE DMACTL REGISTER
+    { "SDLSTL", 0x0230 }, // SAVE DISPLAY LIST LOW BYTE
+    { "SDLSTH", 0x0231 }, // SAVE DISPLAY LIST HI BYTE
+    { "SSKCTL", 0x0232 }, // SKCTL REGISTER RAM
+    { "LPENH",  0x0234 }, // LIGHT PEN HORIZONTAL VALUE
+    { "LPENV",  0x0235 }, // LIGHT PEN VERTICAL VALUE
+    { "BRKKY",  0x0236 }, // BREAK KEY VECTOR
+
+    { "PADDL0", 0x0270 }, // 1-byte potentiometer 0
+    { "PADDL1", 0x0271 }, // 1-byte potentiometer 1
+    { "PADDL2", 0x0272 }, // 1-byte potentiometer 2
+    { "PADDL3", 0x0273 }, // 1-byte potentiometer 3
+    { "PADDL4", 0x0274 }, // 1-byte potentiometer 4
+    { "PADDL5", 0x0275 }, // 1-byte potentiometer 5
+    { "PADDL6", 0x0276 }, // 1-byte potentiometer 6
+    { "PADDL7", 0x0277 }, // 1-byte potentiometer 7
+
+    { "STICK0", 0x0278 }, // 1-byte joystick 0
+    { "STICK1", 0x0279 }, // 1-byte joystick 1
+    { "STICK2", 0x027A }, // 1-byte joystick 2
+    { "STICK3", 0x027B }, // 1-byte joystick 3
+
+    { "PTRIG0", 0x027C }, // 1-byte paddle trigger 0
+    { "PTRIG1", 0x027D }, // 1-byte paddle trigger 1
+    { "PTRIG2", 0x027E }, // 1-byte paddle trigger 2
+    { "PTRIG3", 0x027F }, // 1-byte paddle trigger 3
+    { "PTRIG4", 0x0280 }, // 1-byte paddle trigger 4
+    { "PTRIG5", 0x0281 }, // 1-byte paddle trigger 5
+    { "PTRIG6", 0x0281 }, // 1-byte paddle trigger 6
+    { "PTRIG7", 0x0283 }, // 1-byte paddle trigger 7
+
+    { "STRIG0", 0x0284 }, // 1-byte joystick trigger 0
+    { "STRIG1", 0x0285 }, // 1-byte joystick trigger 1
+    { "STRIG2", 0x0286 }, // 1-byte joystick trigger 2
+    { "STRIG3", 0x0287 }, // 1-byte joystick trigger 3
+
+    // Text window
+    { "TXTROW", 0x0290 }, // TEXT ROWCRS
+    { "TXTCOL", 0x0291 }, // TEXT COLCRS
+    { "TINDEX", 0x0293 }, // TEXT INDEX
+    { "TXTMSC", 0x0294 }, // FOOLS CONVRT INTO NEW MSC
+    { "TXTOLD", 0x0296 }, // OLDROW & OLDCOL FOR TEXT (AND THEN SOME)
+
+    // Color registers
+    { "PCOLR0", 0x02C0 }, // 1-byte player-missile 0 color/luminance
+    { "PCOLR1", 0x02C1 }, // 1-byte player-missile 1 color/luminance
+    { "PCOLR2", 0x02C2 }, // 1-byte player-missile 2 color/luminance
+    { "PCOLR3", 0x02C3 }, // 1-byte player-missile 3 color/luminance
+    { "COLOR0", 0x02C4 }, // 1-byte playfield 0 color/luminance
+    { "COLOR1", 0x02C5 }, // 1-byte playfield 1 color/luminance
+    { "COLOR2", 0x02C6 }, // 1-byte playfield 2 color/luminance
+    { "COLOR3", 0x02C7 }, // 1-byte playfield 3 color/luminance
+    { "COLOR4", 0x02C8 }, // 1-byte background color/luminance
+
+    { "RAMSIZ",   0x02E4 }, // RAM SIZE (HI BYTE ONLY)
+    { "MEMTOP",   0x02E5 }, // TOP OF AVAILABLE USER MEMORY
+    { "MEMTOP+1", 0x02E6 },
+    { "MEMLO",    0x02E7 }, // BOTTOM OF AVAILABLE USER MEMORY
+    { "MEMLO+1",  0x02E8 },
+
+    { "CHAR",     0x02FA }, // 1-byte internal character
+    { "ATACHR",   0x02FB }, // ATASCII CHARACTER FOR DRAW/FILL BORDER
+    { "CH",       0x02FC }, // GLOBAL VARIABLE FOR KEYBOARD
+    { "FILDAT",   0x02FD }, // RIGHT FILL COLOR
+    { "DSPFLG",   0x02FE }, // DISPLAY FLAG   DISPLAY CNTLS IF NON-ZERO
+    { "SSFLAG",   0x02FF }, // START/STOP FLAG FOR PAGING (CNTL 1). CLEARE
+
+    { "HATABS", 0x031A }, // 35-byte handler address table (was 38 bytes)
+
+
+    { "IOCB",  0x0340 }, // I/O CONTROL BLOCKS
+    { "ICHID", 0x0340 }, // HANDLER INDEX NUMBER (FF=IOCB FREE)
+    { "ICDNO", 0x0341 }, // DEVICE NUMBER (DRIVE NUMBER)
+    { "ICCOM", 0x0342 }, // COMMAND CODE
+    { "ICSTA", 0x0343 }, // STATUS OF LAST IOCB ACTION
+    { "ICBAL", 0x0344 }, // 1-byte low buffer address
+    { "ICBAH", 0x0345 }, // 1-byte high buffer address
+    { "ICPTL", 0x0346 }, // 1-byte low PUT-BYTE routine address - 1
+    { "ICPTH", 0x0347 }, // 1-byte high PUT-BYTE routine address - 1
+    { "ICBLL", 0x0348 }, // 1-byte low buffer length
+    { "ICBLH", 0x0349 }, // 1-byte high buffer length
+    { "ICAX1", 0x034A }, // 1-byte first auxiliary information
+    { "ICAX2", 0x034B }, // 1-byte second auxiliary information
+    { "ICAX3", 0x034C }, // 1-byte third auxiliary information
+    { "ICAX4", 0x034D }, // 1-byte fourth auxiliary information
+    { "ICAX5", 0x034E }, // 1-byte fifth auxiliary information
+    { "ICSPR", 0x034F }, // SPARE BYTE
+
+    { "LBPR1", 0x057E }, // LBUFF PREFIX 1
+    { "LBPR2", 0x057F }, // LBUFF PREFIX 2
+    { "LBUFF", 0x0580 }, // 128-byte line buffer
+
+    // Floating Point package
+    { "AFP",    0xD800 }, // convert ASCII to floating point
+    { "FASC",   0xD8E6 }, // convert floating point to ASCII
+    { "IFP",    0xD9AA }, // convert integer to floating point
+    { "FPI",    0xD9D2 }, // convert floating point to integer
+    { "ZFR0",   0xDA44 }, // zero FR0
+    { "ZF1",    0xDA46 }, // zero floating point number
+    { "FSUB",   0xDA60 }, // subtract floating point numbers
+    { "FADD",   0xDA66 }, // add floating point numbers
+    { "FMUL",   0xDADB }, // multiply floating point numbers
+    { "FDIV",   0xDB28 }, // divide floating point numbers
+    { "PLYEVL", 0xDD40 }, // evaluate floating point polynomial
+    { "FLD0R",  0xDD89 }, // load floating point number
+    { "FLD0P",  0xDD8D }, // load floating point number
+    { "FLD1R",  0xDD98 }, // load floating point number
+    { "PLD1P",  0xDD9C }, // load floating point number
+    { "FST0R",  0xDDA7 }, // store floating point number
+    { "FST0P",  0xDDAB }, // store floating point number
+    { "FMOVE",  0xDDB6 }, // move floating point number
+    { "LOG",    0xDECD }, // calculate floating point logarithm
+    { "LOG10",  0xDED1 }, // calculate floating point base 10 logarithm
+    { "EXP",    0xDDC0 }, // calculate floating point exponential
+    { "EXP10",  0xDDCC }, // calculate floating point base 10 exponential
+
+    { "EDITRV", 0xE400 }, // editor handler vector table
+    { "SCRENV", 0xE410 }, // screen handler vector table
+    { "KEYBDV", 0xE420 }, // keyboard handler vector table
+    { "PRINTV", 0xE430 }, // printer handler vector table
+    { "CASETV", 0xE440 }, // cassette handler vector table
+
+    { "DISKIV", 0xE450 }, // vector to initialize DIO
+    { "DSKINV", 0xE453 }, // vector to DIO
+    { "CIOV",   0xE456 }, // vector to CIO
+    { "SIOV",   0xE459 }, // vector to SIO
+    { "SETVBV", 0xE45C }, // vector to set VBLANK parameters
+    { "SYSVBV", 0xE45F }, // vector to process immediate VBLANK
+    { "XITVBV", 0xE462 }, // vector to process deferred VBLANK
+    { "SIOINV", 0xE465 }, // vector to initialize SIO
+    { "SENDEV", 0xE468 }, // vector to enable SEND
+    { "INTINV", 0xE46B }, // vector to initialize interrupt handler
+    { "CIOINV", 0xE46E }, // vector to initialize CIO
+    { "BLKBDV", 0xE471 }, // vector to power-up display
+    { "WARMSV", 0xE474 }, // vector to warmstart
+    { "COLDSV", 0xE477 }, // vector to coldstart
+    { "RBLOKV", 0xE47A }, // vector to read cassette block
+    { "CSOPIV", 0xE47D }, // vector to open cassette for input
+
+    { 0, 0 }
+};
+
+void atari_init(sim65 s, int load_labels)
 {
     // Add 52k of uninitialized ram, maximum possible for the Atari architecture.
     sim65_add_ram(s, 0, MAX_RAM);
@@ -801,6 +1050,12 @@ void atari_init(sim65 s)
     atari_hardware_init(s);
     // Add ROM handlers
     atari_bios_init(s);
+    // Load labels
+    if (load_labels)
+    {
+        for (int i = 0; 0 != atari_labels[i].lbl; i++)
+            sim65_lbl_add(s, atari_labels[i].addr, atari_labels[i].lbl);
+    }
 }
 
 int atari_xex_load(sim65 s, const char *name)
