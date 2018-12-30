@@ -122,3 +122,6 @@ enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
 
 /// Prints the current register values
 void sim65_print_reg(sim65 s);
+
+/// Returns string representing error value
+const char *sim65_error_str(sim65 s, enum sim65_error e);

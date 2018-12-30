@@ -1164,3 +1164,27 @@ int sim65_eprintf(sim65 s, const char *format, ...)
     va_end(ap);
     return size;
 }
+
+const char *sim65_error_str(sim65 s, enum sim65_error e)
+{
+    const char *err[1-sim65_err_user] = {
+        "no error",
+        "instruction read from undefined memory",
+        "instruction read from uninitialized memory",
+        "read from undefined memory",
+        "read from uninitialized memory",
+        "write to undefined memory",
+        "write to read-only memory",
+        "BRK instruction executed",
+        "invalid instruction executed",
+        "return from emulator",
+        "user defined error"
+    };
+
+    if (e > sim65_err_none)
+        e = sim65_err_none;
+    else if (e < sim65_err_user)
+        e = sim65_err_user;
+    return err[-e];
+
+}

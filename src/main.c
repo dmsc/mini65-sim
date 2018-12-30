@@ -47,7 +47,7 @@ static void exit_error(const char *text, const char *name)
 int main(int argc, char **argv)
 {
     sim65 s;
-    int start, e, i;
+    int start, i;
     char *fname       = 0;
     enum sim65_debug dbgLevel = sim65_debug_none;
     unsigned rom      = 0;
@@ -109,8 +109,9 @@ int main(int argc, char **argv)
             exit_error("missing start address", argv[0]);
     }
     // start
-    e = sim65_call(s, 0, start);
-    sim65_print_reg(s);
-    printf("Simulation returns: %d\n", e);
+    enum sim65_error e = sim65_call(s, 0, start);
+    if (e)
+        // Prints error message
+        sim65_eprintf(s, "simulator returned %s.", sim65_error_str(s, e));
     return 0;
 }
