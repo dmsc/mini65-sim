@@ -72,6 +72,12 @@ static void pchar(unsigned c)
     fflush(stdout);
 }
 
+// EDITOR defs
+#define LMARGN (0x52) // left margin
+#define RMARGN (0x53) // right margin
+#define ROWCRS (0x54) // cursor row
+#define COLCRS (0x55) // cursor column (2 byte)
+
 #define LO(a) ((a)&0xFF)
 #define HI(a) ((a) >> 8)
 
@@ -145,6 +151,7 @@ static const unsigned char devhand_emudos[] = {
 #define CIOERR (0xE530) // FIXME: CIO error return routine
 #define IC(a) (regs->x + IC##a) // IOCB address
 #define GET_IC(a) sim65_get_byte(s, IC(a))
+#define CIOCHR (0x2F)  //         ;CHARACTER BYTE FOR CURRENT OPERATION
 #define ICHID (0x0340) //         ;HANDLER INDEX NUMBER (FF=IOCB FREE)
 #define ICDNO (0x0341) //         ;DEVICE NUMBER (DRIVE NUMBER)
 #define ICCOM (0x0342) //         ;COMMAND CODE
@@ -196,10 +203,10 @@ static int cio_ok(sim65 s, struct sim65_reg *r, unsigned acc)
 static void call_devtab(sim65 s, struct sim65_reg *regs, uint16_t devtab, int fn)
 {
     if (fn == DEVR_PUT)
-        poke(s, 0x2F, regs->a);
+        poke(s, CIOCHR, regs->a);
     sim65_call(s, regs, 1 + dpeek(s, devtab + 2 * fn));
     if (fn == DEVR_GET)
-        poke(s, 0x2F, regs->a);
+        poke(s, CIOCHR, regs->a);
 }
 
 static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
@@ -342,7 +349,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                     break;
                 badr++;
                 blen--;
-                if (peek(s, 0x2F) == 0x9B)
+                if (peek(s, CIOCHR) == 0x9B)
                     break;
             }
             // Must return number of bytes transfered
@@ -408,7 +415,7 @@ static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    static int last_row = 0;
+    static uint8_t last_row = 0;
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -430,16 +437,16 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         }
         case DEVR_PUT:
             // Keeps column number updated
-            dpoke(s, 0x55, dpeek(s, 0x55) + 1);
+            dpoke(s, COLCRS, dpeek(s, COLCRS) + 1);
             if (regs->a == 0x9B)
             {
-                dpoke(s, 0x55, peek(s, 0x52));
-                if (peek(s, 0x54) < 24)
-                    poke(s, 0x54, peek(s, 0x54) + 1);
+                dpoke(s, COLCRS, peek(s, LMARGN));
+                if (peek(s, ROWCRS) < 24)
+                    poke(s, ROWCRS, peek(s, ROWCRS) + 1);
             }
-            else if (peek(s, 0x54) != last_row)
+            else if (peek(s, ROWCRS) != last_row)
                 pchar(0x9B);
-            last_row = peek(s, 0x54);
+            last_row = peek(s, ROWCRS);
             pchar(regs->a);
             regs->y = 1;
             return 0;
@@ -776,8 +783,11 @@ static void atari_bios_init(sim65 s)
     dpoke(s, 0x2e7, 0x700); // MEMLO
     poke(s, 0x2FC, 0xFF); // CH
     poke(s, 0x2F2, 0xFF); // CH1
-    poke(s, 0x52, 2); // LMARGIN
-    poke(s, 0x53, 39); // RMARGIN
+    poke(s, LMARGN, 2); // LMARGIN
+    poke(s, RMARGN, 39); // RMARGIN
+    poke(s, ROWCRS, 0); // ROWCRS
+    dpoke(s, COLCRS, 2); // COLCRS
+    poke(s, 0x57, 0); // DINDEX
     dpoke(s, 0x58, 0xC000); // Simulated screen pointer
     poke(s, 0x5D, 0); // OLDCH
     dpoke(s, 0x5E, 0xC000); // Store an invalid value in OLDADR, to catch
