@@ -734,14 +734,11 @@ static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
-static int catch_OLDADR_write(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
-{
-    if (data == sim65_cb_read)
-        return 0;
-
-    sim65_dprintf(s, "screen write $%02X (%d)", data, addr - 0xE000);
-    return 0;
-}
+// Define our memory map, usable for applications 46.25k.
+#define MAX_RAM  (0xD000)       // RAM up to 0xD000 (52k)
+#define APP_RAM  (0xC000)       // Usable to applications 0xC000 (48k)
+#define LOW_RAM  (0x0700)       // Reserved to the OS up to 0x0700 (1.75k)
+#define VID_RAM  (0xC000)       // Video RAM from 0xC000) (4k reserved for video)
 
 static void atari_bios_init(sim65 s)
 {
@@ -779,8 +776,8 @@ static void atari_bios_init(sim65 s)
     poke(s, 17, 0x80); // BREAK key not pressed
     dpoke(s, 10, 0x0); // DOSVEC, go to DOS vector, use 0 as simulation return
     dpoke(s, 14, 0x800); // APPHI, lowest usable RAM area
-    dpoke(s, 0x2e5, 0xC000); // MEMTOP
-    dpoke(s, 0x2e7, 0x700); // MEMLO
+    dpoke(s, 0x2e5, APP_RAM); // MEMTOP
+    dpoke(s, 0x2e7, LOW_RAM); // MEMLO
     poke(s, 0x2FC, 0xFF); // CH
     poke(s, 0x2F2, 0xFF); // CH1
     poke(s, LMARGN, 2); // LMARGIN
@@ -788,19 +785,18 @@ static void atari_bios_init(sim65 s)
     poke(s, ROWCRS, 0); // ROWCRS
     dpoke(s, COLCRS, 2); // COLCRS
     poke(s, 0x57, 0); // DINDEX
-    dpoke(s, 0x58, 0xC000); // Simulated screen pointer
+    dpoke(s, 0x58, VID_RAM); // Simulated screen pointer
     poke(s, 0x5D, 0); // OLDCH
-    dpoke(s, 0x5E, 0xC000); // Store an invalid value in OLDADR, to catch
+    dpoke(s, 0x5E, VID_RAM); // Store an invalid value in OLDADR, to catch
                             // programs writing to the screen directly.
-    poke(s, 0x6A, 0xC0); // RAMTOP
-    sim65_add_callback_range(s, 0xC000, 1024, catch_OLDADR_write, sim65_cb_write);
+    poke(s, 0x6A, APP_RAM/256); // RAMTOP
     poke(s, 0x2be, 64); // SHFLOK
 }
 
 void atari_init(sim65 s)
 {
-    // Add 64k of uninitialized ram
-    sim65_add_ram(s, 0, 0x10000);
+    // Add 52k of uninitialized ram, maximum possible for the Atari architecture.
+    sim65_add_ram(s, 0, MAX_RAM);
     // Add hardware handlers
     atari_hardware_init(s);
     // Add ROM handlers
