@@ -29,6 +29,7 @@ static void print_help(const char *name)
                     " -h: Show this help\n"
                     " -d: Print debug messages\n"
                     " -t: Print simulation trace\n"
+                    " -l <file>: Loads label file, used in simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n",
             name);
 }
@@ -51,10 +52,10 @@ int main(int argc, char **argv)
 {
     sim65 s;
     int start, opt;
-    char *fname       = 0;
+    unsigned rom = 0;
+    const char *lblname = 0;
     enum sim65_debug dbgLevel = sim65_debug_none;
-    unsigned rom      = 0;
-    while ((opt = getopt(argc, argv, "tdhr:")) != -1)
+    while ((opt = getopt(argc, argv, "tdhr:l:")) != -1)
     {
         switch (opt)
         {
@@ -70,6 +71,9 @@ int main(int argc, char **argv)
             case 'r': // rom address
                 rom = strtol(optarg, 0, 0);
                 break;
+            case 'l': // label file
+                lblname = optarg;
+                break;
             default:
                 print_error(0, argv[0]);
         }
@@ -79,7 +83,7 @@ int main(int argc, char **argv)
         print_error("missing filename", argv[0]);
     else if (optind + 1 != argc)
         print_error("only one filename allowed", argv[0]);
-    fname = argv[optind];
+    const char *fname = argv[optind];
 
     s = sim65_new();
     if (!s)
@@ -87,6 +91,10 @@ int main(int argc, char **argv)
 
     // Set debug level
     sim65_set_debug(s, dbgLevel);
+
+    // Load labels file
+    if (lblname)
+        sim65_lbl_load(s, lblname);
 
     // Initialize Atari emu
     atari_init(s);

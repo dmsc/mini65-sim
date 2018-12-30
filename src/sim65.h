@@ -125,3 +125,9 @@ void sim65_print_reg(sim65 s);
 
 /// Returns string representing error value
 const char *sim65_error_str(sim65 s, enum sim65_error e);
+
+/// Load labels from a file, in CC65 format
+int sim65_lbl_load(sim65 s, const char *lblname);
+
+/// Adds a single label
+void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl);

@@ -55,7 +55,16 @@ struct sim65s
     sim65_callback cb_read[MAXRAM];
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
+    char *labels;
 };
+
+static char *get_label(sim65 s, uint16_t addr)
+{
+    if (s->labels)
+        return s->labels + addr * 32;
+    else
+        return 0;
+}
 
 static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 {
@@ -813,23 +822,125 @@ static void print_mem_count(char *buf, sim65 s, unsigned addr, unsigned len)
         print_mem(buf + i * 4, s, addr + i);
 }
 
+static char *print_lbl_max(char *buf, char *lbl, int max)
+{
+    int ln = strlen(lbl);
+    if (ln > max)
+    {
+        *buf++ = '?';
+        memcpy(buf, lbl + ln - max + 1, max - 1);
+        buf += max - 1;
+    }
+    else
+    {
+        memcpy(buf, lbl, ln);
+        buf += ln;
+    }
+    return buf;
+}
+
+static char *print_abs_label(sim65 s, char *buf, uint16_t addr, char idx)
+{
+    char *l = get_label(s, addr);
+    if (l && *l)
+        buf = print_lbl_max(buf, l, 24);
+    else
+    {
+        *buf++ = '$';
+        buf = hex4(buf, addr);
+    }
+    if (idx)
+    {
+        *buf++ = ',';
+        *buf++ = idx;
+    }
+    return buf;
+}
+
+static char *print_zp_label(sim65 s, char *buf, uint16_t addr, char idx)
+{
+    char *l = get_label(s, addr);
+    if (l && *l)
+        buf = print_lbl_max(buf, l, 24);
+    else
+    {
+        *buf++ = '$';
+        buf = hex2(buf, addr);
+    }
+    if (idx)
+    {
+        *buf++ = ',';
+        *buf++ = idx;
+    }
+    return buf;
+}
+
+static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx)
+{
+    char *l = get_label(s, addr);
+    *buf++ = '(';
+    if (l && *l)
+        buf = print_lbl_max(buf, l, 14);
+    else
+    {
+        *buf++ = '$';
+        if (idx)
+            buf = hex2(buf, addr);
+        else
+            buf = hex4(buf, addr);
+    }
+    if (idx == 'Y')
+        *buf++ = ')';
+
+    if (idx)
+    {
+        *buf++ = ',';
+        *buf++ = idx;
+    }
+
+    if (idx != 'Y')
+        *buf++ = ')';
+
+    *buf++ = ' ';
+    *buf++ = '[';
+    *buf++ = '$';
+
+    if (idx == 'X')
+        buf = hex4(buf, readWord(s, 0xFF & (addr + s->r.x)));
+    else if (idx == 'Y')
+        buf = hex4(buf, readWord(s, addr) + s->r.y);
+    else
+        buf = hex4(buf, readWord(s, addr));
+    *buf++ = ']';
+
+    return buf;
+}
 
 #define PSTR(str) memcpy(buf, str, strlen(str)); buf += strlen(str)
 #define PHX2(val) buf = hex2(buf, val)
 #define PHX4(val) buf = hex4(buf, val)
 #define PNAM(name)  PSTR(name); buf++;
+#define PLAB(val)  buf = print_abs_label(s, buf, val, 0)
+#define PLABX(val) buf = print_abs_label(s, buf, val, 'X')
+#define PLABY(val) buf = print_abs_label(s, buf, val, 'Y')
+#define PLZP(val)  buf = print_zp_label(s, buf, val, 0)
+#define PLZPX(val) buf = print_zp_label(s, buf, val, 'X')
+#define PLZPY(val) buf = print_zp_label(s, buf, val, 'Y')
+#define PLIDX(val) buf = print_ind_label(s, buf, val, 'X')
+#define PLIDY(val) buf = print_ind_label(s, buf, val, 'Y')
+#define PLIND(val) buf = print_ind_label(s, buf, val, 0)
 
 #define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
-#define INSPRT_BRA(name) PNAM(name); PSTR("$"); PHX4( s->r.pc + 2 + (signed char)data)
-#define INSPRT_ABS(name) PNAM(name); PSTR("$"); PHX4(data)
-#define INSPRT_ABX(name) PNAM(name); PSTR("$"); PHX4(data); PSTR(",X")
-#define INSPRT_ABY(name) PNAM(name); PSTR("$"); PHX4(data); PSTR(",Y")
-#define INSPRT_ZPG(name) PNAM(name); PSTR("$"); PHX2(data)
-#define INSPRT_ZPX(name) PNAM(name); PSTR("$"); PHX2(data); PSTR(",X")
-#define INSPRT_ZPY(name) PNAM(name); PSTR("$"); PHX2(data); PSTR(",Y")
-#define INSPRT_IDX(name) PNAM(name); PSTR("($"); PHX2(data); PSTR(",X) [$"); PHX4(readWord(s, 0xFF & (data + s->r.x))); PSTR("]")
-#define INSPRT_IDY(name) PNAM(name); PSTR("($"); PHX2(data); PSTR("),Y [$"); PHX4(readWord(s, data) + s->r.y); PSTR("]")
-#define INSPRT_IND(name) PNAM(name); PSTR("($"); PHX4(data); PSTR(") [$"); PHX4(readWord(s, data)); PSTR("]")
+#define INSPRT_BRA(name) PNAM(name); PLAB(s->r.pc + 2 + (signed char)data)
+#define INSPRT_ABS(name) PNAM(name); PLAB(data)
+#define INSPRT_ABX(name) PNAM(name); PLABX(data)
+#define INSPRT_ABY(name) PNAM(name); PLABY(data)
+#define INSPRT_ZPG(name) PNAM(name); PLZP(data)
+#define INSPRT_ZPX(name) PNAM(name); PLZPX(data)
+#define INSPRT_ZPY(name) PNAM(name); PLZPY(data)
+#define INSPRT_IDX(name) PNAM(name); PLIDX(data)
+#define INSPRT_IDY(name) PNAM(name); PLIDY(data)
+#define INSPRT_IND(name) PNAM(name); PLIND(data)
 #define INSPRT_IMP(name) PNAM(name)
 #define INSPRT_ACC(name) PNAM(name); PSTR("A")
 
@@ -841,12 +952,16 @@ static void print_curr_ins(char *buf, sim65 s)
         data = s->mem[(1 + s->r.pc) & 0xFFFF];
     else if (ilen[ins] == 3)
         data = s->mem[(1 + s->r.pc) & 0xFFFF] + (s->mem[(2 + s->r.pc) & 0xFFFF] << 8);
-    memset(buf, ' ', 30);
-    buf[21] = ';';
+
+    int ln = 21;
+    if (s->labels)
+        ln = 31;
+    memset(buf, ' ', ln + 9);
+    buf[ln] = ';';
     c = ilen[ins];
-    print_mem_count(buf + 23, s, s->r.pc, c);
-    buf[23 + c * 4] = '\n';
-    buf[24 + c * 4] = 0;
+    print_mem_count(buf + ln + 2, s, s->r.pc, c);
+    buf[ln + 2 + c * 4] = '\n';
+    buf[ln + 3 + c * 4] = 0;
 
     switch (ins)
     {
@@ -1111,7 +1226,7 @@ static void print_curr_ins(char *buf, sim65 s)
 
 void sim65_print_reg(sim65 s)
 {
-    char buffer[128];
+    char buffer[256];
     char *buf = buffer;
     buf = hex8(buf, s->cycles);
     PSTR(": A=");
@@ -1126,7 +1241,21 @@ void sim65_print_reg(sim65 s)
     PHX2(s->r.s);
     PSTR(" PC=");
     PHX4(s->r.pc);
-    PSTR(" : ");
+    if (s->labels)
+    {
+        char *ebuf = buf + 19;
+        *buf++ = ' ';
+        char *l = get_label(s, s->r.pc);
+        buf = print_lbl_max(buf, l, 16);
+        if( *l )
+            *buf++ = ':';
+        while (buf < ebuf)
+            *buf++ = ' ';
+    }
+    else
+    {
+        PSTR(" : ");
+    }
     print_curr_ins(buf, s);
     fputs(buffer, stderr);
 }
@@ -1188,4 +1317,40 @@ const char *sim65_error_str(sim65 s, enum sim65_error e)
         e = sim65_err_user;
     return err[-e];
 
+}
+
+void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
+{
+    // Ignore empty labels
+    if (!lbl || !*lbl)
+        return;
+    // Allocate labels if not already done
+    if (!s->labels)
+        s->labels = (char *)calloc(65536, 32);
+    strncpy( get_label(s, addr), lbl, 31);
+}
+
+int sim65_lbl_load(sim65 s, const char *lblname)
+{
+    int line = 1;
+    FILE *f = fopen(lblname, "r");
+    if (!f)
+        return -1;
+    while (1)
+    {
+        char name[32];
+        unsigned addr;
+        int e = fscanf(f, "al %6x .%31s\n", &addr, name);
+        if (e == EOF)
+            break;
+        else if (e != 2)
+        {
+            sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
+            return -1;
+        }
+        else if (addr <= 0xFFFF)
+            sim65_lbl_add(s, addr, name);
+        line ++;
+    }
+    return 0;
 }
