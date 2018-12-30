@@ -28,6 +28,21 @@ enum sim65_debug {
     sim65_debug_trace = 2
 };
 
+/// Errors returned by simulator
+enum sim65_error {
+    sim65_err_none        = 0,
+    sim65_err_exec_undef  = -1,
+    sim65_err_exec_uninit = -2,
+    sim65_err_read_undef  = -3,
+    sim65_err_read_uninit = -4,
+    sim65_err_write_undef = -5,
+    sim65_err_write_rom   = -6,
+    sim65_err_break       = -7,
+    sim65_err_invalid_ins = -8,
+    sim65_err_call_ret    = -9,
+    sim65_err_user        = -10
+};
+
 /// Creates new simulator state, with no address regions defined.
 sim65 sim65_new();
 /// Adds an uninitialized RAM region.
@@ -77,7 +92,8 @@ enum sim65_cb_type
  *             sim65_cb_read = read memory
  *             sim65_cb_exec = execute address
  *             other value   = write memory, data is the value to write.
- * @returns <0 on error, value to read in case of read-callback. */
+ * @returns the value (0-255) in case of read-callback, or an negative value
+ *          from enum sim65_error. */
 typedef int (*sim65_callback)(sim65 s, struct sim65_reg *regs, unsigned addr, int data);
 
 /// Adds a callback at the given address of the given type
@@ -94,7 +110,7 @@ unsigned sim65_get_byte(sim65 s, unsigned addr);
 
 /// Runs the simulation. Stops at BRK, a callback returning != 0 or execution errors.
 /// If regs is NULL, initializes the registers to zero.
-int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr);
+enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr);
 
 /// Calls the simulation.
 /// Simulates a call via a JSR to the given address, pushing a (fake) return address
@@ -102,7 +118,7 @@ int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr);
 /// If regs is NULL, initializes the registers to zero.
 /// @returns 0 if exit through the RTS, non 0 when stops at BRK, a callback
 ///          returning != 0 or execution errors.
-int sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
+enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
 
 /// Prints the current register values
 void sim65_print_reg(sim65 s);

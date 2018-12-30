@@ -31,17 +31,6 @@
 #define ms_invalid  4
 #define ms_callback 8
 
-// Simulator errors
-#define err_exec_undef   1
-#define err_exec_uninit  2
-#define err_read_undef   3
-#define err_read_uninit  4
-#define err_write_undef  5
-#define err_write_rom    6
-#define err_break        7
-#define err_invalid_ins  8
-#define err_call_ret     9
-
 // Instruction lengths
 static uint8_t ilen[256] = {
     1,2,1,1,1,2,2,1,1,2,1,1,1,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
@@ -57,7 +46,7 @@ static uint8_t ilen[256] = {
 struct sim65s
 {
     enum sim65_debug debug;
-    unsigned error;
+    enum sim65_error error;
     unsigned cycles;
     struct sim65_reg r;
     uint8_t p_valid;
@@ -88,7 +77,7 @@ void sim65_set_flags(sim65 s, uint8_t flag, uint8_t val)
 
 sim65 sim65_new()
 {
-    sim65 s = calloc(sizeof(struct sim65s), 1);
+    sim65 s = (sim65)calloc(sizeof(struct sim65s), 1);
     s->r.s = 0xFF;
     s->p_valid = 0xFF;
     set_flags(s, 0xFF, 0x34);
@@ -186,18 +175,18 @@ unsigned sim65_get_byte(sim65 s, unsigned addr)
     return s->mem[addr];
 }
 
-void set_error(sim65 s, unsigned e)
+void set_error(sim65 s, int e)
 {
-    if (!s->error)
-        s->error = e;
+    if (e < 0 && !s->error)
+        s->error = (enum sim65_error)e;
 }
 
 static uint8_t readPc_slow(sim65 s, uint16_t addr)
 {
     if (s->mems[addr] & ms_undef)
-        set_error(s, err_exec_undef);
+        set_error(s, sim65_err_exec_undef);
     else
-        set_error(s, err_exec_uninit);
+        set_error(s, sim65_err_exec_uninit);
     return s->mem[addr];
 }
 
@@ -214,18 +203,17 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
     if ((s->mems[addr] & ms_callback) && s->cb_read[addr])
     {
         int e = s->cb_read[addr](s, &s->r, addr, sim65_cb_read);
-        if (e < 0)
-            set_error(s, e);
+        set_error(s, e);
         return e;
     }
     else
     {
         if (s->mems[addr] & ms_undef)
-            set_error(s, err_read_undef);
+            set_error(s, sim65_err_read_undef);
         else
         {
             sim65_eprintf(s, "reading uninitialized value at $%4X", addr);
-            // set_error(s, err_read_uninit); // Common enough!
+            // set_error(s, sim65_err_read_uninit); // Common enough!
             s->mems[addr] &= ~ms_invalid;
         }
         return s->mem[addr];
@@ -245,15 +233,11 @@ static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
         s->mems[addr] = 0;
     }
     else if ((s->mems[addr] & ms_callback) && s->cb_write[addr])
-    {
-        int e = s->cb_write[addr](s, &s->r, addr, val);
-        if (e)
-            set_error(s, e);
-    }
+        set_error(s, s->cb_write[addr](s, &s->r, addr, val));
     else if (s->mems[addr] & ms_undef)
-        set_error(s, err_write_undef);
+        set_error(s, sim65_err_write_undef);
     else if (s->mems[addr] & ms_rom)
-        set_error(s, err_write_rom);
+        set_error(s, sim65_err_write_rom);
 }
 
 static inline void writeByte(sim65 s, uint16_t addr, uint8_t val)
@@ -531,12 +515,9 @@ static void next(sim65 s)
     // See if out vector
     if (s->cb_exec[s->r.pc])
     {
-        int err = s->cb_exec[s->r.pc](s, &s->r, s->r.pc, sim65_cb_exec);
-        if (err)
-        {
-            set_error(s, err);
+        set_error(s, s->cb_exec[s->r.pc](s, &s->r, s->r.pc, sim65_cb_exec));
+        if (s->error)
             return;
-        }
     }
 
     if (s->debug >= sim65_debug_trace)
@@ -555,7 +536,7 @@ static void next(sim65 s)
 
     switch (ins)
     {
-        case 0x00:  set_error(s, err_break); break;
+        case 0x00:  set_error(s, sim65_err_break); break;
         case 0x01:  IND_X(ORA);             break;
         case 0x05:  ZP_R(ORA);              break;
         case 0x06:  ZP_RW(ASL);             break;
@@ -706,16 +687,16 @@ static void next(sim65 s)
         case 0xf9:  ABY_R(SBC);             break;
         case 0xfd:  ABX_R(SBC);             break;
         case 0xfe:  ABX_RW(INC);            break;
-        default:    set_error(s, err_invalid_ins);
+        default:    set_error(s, sim65_err_invalid_ins);
     }
 }
 
-int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
+enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
 {
     if (regs)
         memcpy(&s->r, regs, sizeof(*regs));
 
-    s->error = 0;
+    s->error = sim65_err_none;
     s->r.pc = addr;
     while (!s->error)
         next(s);
@@ -727,13 +708,14 @@ int sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
 }
 
 // Called on return from simulated code
-static int sim65_rts_callback(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+static int sim65_rts_callback(sim65 s, struct sim65_reg *regs,
+                              unsigned addr, int data)
 {
-    return err_call_ret;
+    return (int)sim65_err_call_ret;
 }
 
 // Calls the emulator at given code, ends on RTS
-int sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
+enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
 {
     // Setup registers if given
     if (regs)
@@ -750,18 +732,16 @@ int sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
     do_jsr(s, addr);
 
     // And continue the emulator
-    int err = sim65_run(s, 0, addr);
+    enum sim65_error err = sim65_run(s, 0, addr);
 
     // Now, return to old address
     s->r.pc = old_pc;
 
-    if (err == err_call_ret)
-    {
-        s->error = 0;
-        return 0;
-    }
-    else
-        return err;
+    // If we got from a JSR return, simply return ok
+    if (err == sim65_err_call_ret)
+        err = s->error = sim65_err_none;
+
+    return err;
 }
 
 static const char *hex_digits = "0123456789ABCDEF";
