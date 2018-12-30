@@ -464,7 +464,7 @@ static void do_sbc(sim65 s, unsigned val)
 // Special case BIT instructions as sometimes are used to SKIP
 void do_bit(sim65 s, uint16_t addr)
 {
-    if (!(s->mems[addr] & ~ms_invalid))
+    if (0 != (s->mems[addr] & ms_invalid))
         s->p_valid |= (FLAG_N | FLAG_V | FLAG_Z);
     else
     {
