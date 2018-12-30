@@ -26,9 +26,9 @@
 #include <sys/time.h>
 
 // Utility functions
-static int cb_error(unsigned addr)
+static int cb_error(sim65 s, unsigned addr)
 {
-    fprintf(stderr, "Invalid access to cb address $%04x\n", addr);
+    sim65_eprintf(s, "invalid access to cb address $%04x", addr);
     return 0;
 }
 
@@ -181,7 +181,7 @@ static int cio_exit(sim65 s, struct sim65_reg *regs)
 static int cio_error(sim65 s, struct sim65_reg *regs, const char *err, unsigned value)
 {
     regs->y = value & 0xFF;
-    fprintf(stderr, "CIO: %s\n", err);
+    sim65_dprintf(s, "CIO: %s", err);
     return cio_exit(s, regs);
 }
 
@@ -220,13 +220,13 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
     if (com < 3 || com > 14)
     {
-        fprintf(stderr, "CMD = %d\n", com);
+        sim65_dprintf(s, "CIO CMD = %d", com);
         if (com == 37)
         {
             unsigned ax3 = GET_IC(AX3);
             unsigned ax4 = GET_IC(AX4);
             unsigned ax5 = GET_IC(AX5);
-            fprintf(stderr, "POINT %d/%d/%d\n", ax3, ax4, ax5);
+            sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
             return cio_ok(s, regs, 0);
         }
         return cio_error(s, regs, "invalid command", 132);
@@ -241,7 +241,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     // Commands
     if (com == 3)
     {
-        fprintf(stderr, "CIO open %c%c\n", peek(s, badr), peek(s, badr + 1));
+        sim65_dprintf(s, "CIO open %c%c", peek(s, badr), peek(s, badr + 1));
         // OPEN (command 0)
         if (GET_IC(HID) != 0xFF)
             return cio_error(s, regs, "channel already opened", 129);
@@ -316,7 +316,8 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 blen--;
             }
             // Must return number of bytes transfered
-            fprintf(stderr, "blen ends at %d, transfered %d\n", blen, dpeek(s, IC(BLL)) - blen);
+            sim65_dprintf(s, "ICBL ends at %04x, transfered %d bytes",
+                          blen, dpeek(s, IC(BLL)) - blen);
             dpoke(s, IC(BLL), dpeek(s, IC(BLL)) - blen);
             return cio_exit(s, regs);
         }
@@ -399,7 +400,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    fprintf(stderr, "IOCB NOT OPEN\n");
+    sim65_dprintf(s, "CIO error, IOCB not open");
     regs->y = 0x83;
     sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     return 0;
@@ -411,7 +412,7 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     switch (addr & 7)
     {
         case DEVR_OPEN:
-            fprintf(stderr, "EDITR cmd OPEN\n");
+            sim65_dprintf(s, "EDITR cmd OPEN");
             return 0;
         case DEVR_CLOSE:
             return 0;
@@ -443,16 +444,16 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             regs->y = 1;
             return 0;
         case DEVR_STATUS:
-            fprintf(stderr, "EDITR cmd STATUS\n");
+            sim65_dprintf(s, "EDITR cmd STATUS");
             return 0;
         case DEVR_SPECIAL:
-            fprintf(stderr, "EDITR cmd SPECIAL\n");
+            sim65_dprintf(s, "EDITR cmd SPECIAL");
             return 0; // Nothing
         case DEVR_INIT:
-            fprintf(stderr, "EDITR cmd INIT\n");
+            sim65_dprintf(s, "EDITR cmd INIT");
             return 0;
         default:
-            return cb_error(addr);
+            return cb_error(s, addr);
     }
 }
 
@@ -461,27 +462,28 @@ static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     switch (addr & 7)
     {
         case DEVR_OPEN:
-            fprintf(stderr, "SCREN cmd OPEN #%d, %d, %d\n", (regs->x >> 4), GET_IC(AX1), GET_IC(AX2));
+            sim65_dprintf(s, "SCREN cmd OPEN #%d, %d, %d",
+                         (regs->x >> 4), GET_IC(AX1), GET_IC(AX2));
             return 0;
         case DEVR_CLOSE:
             return 0;
         case DEVR_GET:
-            fprintf(stderr, "SCREN cmd GET\n");
+            sim65_dprintf(s, "SCREN cmd GET");
             return 0;
         case DEVR_PUT:
-            fprintf(stderr, "SCREN cmd PUT %d\n", regs->a);
+            sim65_dprintf(s, "SCREN cmd PUT %d", regs->a);
             regs->y = 1;
             return 0;
         case DEVR_STATUS:
-            fprintf(stderr, "SCREN cmd STATUS\n");
+            sim65_dprintf(s, "SCREN cmd STATUS");
             return 0;
         case DEVR_SPECIAL:
-            fprintf(stderr, "SCREN cmd SPECIAL\n");
+            sim65_dprintf(s, "SCREN cmd SPECIAL");
             return 0;
         case DEVR_INIT:
             return 0;
         default:
-            return cb_error(addr);
+            return cb_error(s, addr);
     }
 }
 
@@ -515,7 +517,7 @@ static int sim_KEYBD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_INIT:
             return 0;
         default:
-            return cb_error(addr);
+            return cb_error(s, addr);
     }
 }
 
@@ -538,7 +540,7 @@ static int sim_PRINT(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_INIT:
             return 0;
         default:
-            return cb_error(addr);
+            return cb_error(s, addr);
     }
 }
 
@@ -561,7 +563,7 @@ static int sim_CASET(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_INIT:
             return 0;
         default:
-            return cb_error(addr);
+            return cb_error(s, addr);
     }
 }
 
@@ -599,11 +601,11 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 fname[i] = c;
             }
             fname[i] = 0;
-            fprintf(stderr, "DISK OPEN #%d, %d, %d, '%s'\n", chn, ax1, ax2, fname);
+            sim65_dprintf(s, "DISK OPEN #%d, %d, %d, '%s'", chn, ax1, ax2, fname);
             // Test if not already open
             if (fhand[chn])
             {
-                fprintf(stderr, "disk: Internal error, %d already open.\n", chn);
+                sim65_dprintf(s, "DISK: Internal error, %d already open.", chn);
                 fclose(fhand[chn]);
                 fhand[chn] = 0;
             }
@@ -632,7 +634,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             fhand[chn] = fopen(fname, flags);
             if (!fhand[chn])
             {
-                fprintf(stderr, "disk open: error %s\n", strerror(errno));
+                sim65_dprintf(s, "DISK OPEN: error %s", strerror(errno));
                 if (errno == ENOENT)
                     regs->y = 170;
                 else if (errno == ENOSPC)
@@ -657,7 +659,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_GET:
             if (!fhand[chn])
             {
-                fprintf(stderr, "disk get: Internal error, %d closed.\n", chn);
+                sim65_dprintf(s, "DISK GET: Internal error, %d closed.", chn);
                 regs->y = 133;
             }
             else
@@ -673,7 +675,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_PUT:
             if (!fhand[chn])
             {
-                fprintf(stderr, "disk put: Internal error, %d closed.\n", chn);
+                sim65_dprintf(s, "DISK PUT: Internal error, %d closed.", chn);
                 regs->y = 133;
             }
             else
@@ -689,7 +691,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_INIT:
             return 0;
         default:
-            return cb_error(addr);
+            return cb_error(s, addr);
     }
 }
 
@@ -730,7 +732,7 @@ static int catch_OLDADR_write(sim65 s, struct sim65_reg *regs, unsigned addr, in
     if (data == sim65_cb_read)
         return 0;
 
-    fprintf(stderr, "screen write $%02X (%d)\n", data, addr - 0xE000);
+    sim65_dprintf(s, "screen write $%02X (%d)", data, addr - 0xE000);
     return 0;
 }
 

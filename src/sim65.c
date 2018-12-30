@@ -17,6 +17,7 @@
  */
 #include "sim65.h"
 #include <likely.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,7 +56,7 @@ static uint8_t ilen[256] = {
 
 struct sim65s
 {
-    unsigned debug;
+    enum sim65_debug debug;
     unsigned error;
     unsigned cycles;
     struct sim65_reg r;
@@ -76,7 +77,7 @@ static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 static uint8_t get_flags(sim65 s, uint8_t mask)
 {
     if( 0 != (s->p_valid & mask) )
-        fprintf(stderr, "err: using uninitialized flags at PC=$%4X\n", s->r.pc);
+        sim65_eprintf(s, "using uninitialized flags at PC=$%4X", s->r.pc);
     return s->r.p & mask;
 }
 
@@ -223,7 +224,7 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
             set_error(s, err_read_undef);
         else
         {
-            fprintf(stderr, "err: reading uninitialized value at $%4X\n", addr);
+            sim65_eprintf(s, "reading uninitialized value at $%4X", addr);
             // set_error(s, err_read_uninit); // Common enough!
             s->mems[addr] &= ~ms_invalid;
         }
@@ -538,7 +539,7 @@ static void next(sim65 s)
         }
     }
 
-    if (s->debug)
+    if (s->debug >= sim65_debug_trace)
         sim65_print_reg(s);
 
     // Read instruction and data
@@ -819,7 +820,7 @@ static void print_mem(char *buf, sim65 s, unsigned addr)
         memcpy(buf, "[NN]", 4);
 }
 
-void sim65_set_debug(sim65 s, unsigned level)
+void sim65_set_debug(sim65 s, enum sim65_debug level)
 {
     s->debug = level;
 }
@@ -1147,4 +1148,39 @@ void sim65_print_reg(sim65 s)
     PSTR(" : ");
     print_curr_ins(buf, s);
     fputs(buffer, stderr);
+}
+
+int sim65_dprintf(sim65 s, const char *format, ...)
+{
+    int size;
+    va_list ap;
+    va_start(ap, format);
+    if (s->debug >= sim65_debug_messages)
+    {
+        if (s->debug >= sim65_debug_trace)
+            fprintf(stderr, "%08X: ", s->cycles);
+        else
+            fprintf(stderr, "sim65: ");
+        size = vfprintf(stderr, format, ap);
+        fprintf(stderr, "\n");
+    }
+    else
+        size = 0;
+    va_end(ap);
+    return size;
+}
+
+int sim65_eprintf(sim65 s, const char *format, ...)
+{
+    int size;
+    va_list ap;
+    va_start(ap, format);
+    if (s->debug >= sim65_debug_trace)
+        fprintf(stderr, "%08X: ERROR, ", s->cycles);
+    else
+        fprintf(stderr, "sim65: ERROR, ");
+    size = vfprintf(stderr, format, ap);
+    fprintf(stderr, "\n");
+    va_end(ap);
+    return size;
 }

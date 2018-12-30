@@ -26,6 +26,7 @@ static void print_help(const char *name)
     fprintf(stderr, "Usage: %s [options] <filename>\n"
                     "Options:\n"
                     " -h: Show this help\n"
+                    " -d: Print debug messages\n"
                     " -t: Print simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n",
             name);
@@ -48,14 +49,16 @@ int main(int argc, char **argv)
     sim65 s;
     int start, e, i;
     char *fname       = 0;
-    unsigned dbgLevel = 0;
+    enum sim65_debug dbgLevel = sim65_debug_none;
     unsigned rom      = 0;
     for (i = 1; i < argc; i++)
     {
         if (argv[i][0] == '-')
         {
             if (argv[i][1] == 't') // trace
-                dbgLevel = 1;
+                dbgLevel = sim65_debug_trace;
+            else if (argv[i][1] == 'd') // debug
+                dbgLevel = dbgLevel != sim65_debug_none ? dbgLevel : sim65_debug_messages;
             else if (argv[i][1] == 'h') // help
             {
                 print_help(argv[0]);

@@ -23,7 +23,7 @@
 
 static int sim_exec_error(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    fprintf(stderr, "Invalid exec address $%04x\n", addr);
+    sim65_eprintf(s, "invalid exec address $%04x", addr);
     return -1;
 }
 
@@ -37,12 +37,12 @@ static int sim_gtia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             case 0x1f:
                 return 7; // CONSOL, no key pressed.
             default:
-                fprintf(stderr, "Read GTIA $%04x\n", addr);
+                sim65_dprintf(s, "GTIA read $%04x", addr);
                 return 0;
         }
     }
     else
-        fprintf(stderr, "Write GTIA $%04x <- $%02x\n", addr, data);
+        sim65_dprintf(s, "GTIA write $%04x <- $%02x", addr, data);
     return 0;
 }
 
@@ -71,13 +71,13 @@ static int sim_pokey(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         {
             return 0xFF & rand32();
         }
-        fprintf(stderr, "Read POKEY $%04x\n", addr);
+        sim65_dprintf(s, "POKEY read $%04x", addr);
     }
     else
     {
         // Don't log zero writes
         if( data != 0 )
-            fprintf(stderr, "Write POKEY $%04x <- $%02x\n", addr, data);
+            sim65_dprintf(s, "POKEY write $%04x <- $%02x", addr, data);
     }
     return 0;
 }
@@ -86,9 +86,9 @@ static int sim_pia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // addr & 0x03
     if (data == sim65_cb_read)
-        fprintf(stderr, "Read PIA $%04x\n", addr);
+        sim65_dprintf(s, "PIA read $%04x", addr);
     else
-        fprintf(stderr, "Write PIA $%04x <- $%02x\n", addr, data);
+        sim65_dprintf(s, "PIA write $%04x <- $%02x", addr, data);
     return 0;
 }
 
@@ -96,9 +96,9 @@ static int sim_antic(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // addr & 0x0F
     if (data == sim65_cb_read)
-        fprintf(stderr, "Read ANTIC $%04x\n", addr);
+        sim65_dprintf(s, "ANTIC read $%04x", addr);
     else
-        fprintf(stderr, "Write ANTIC $%04x <- $%02x\n", addr, data);
+        sim65_dprintf(s, "ANTIC write $%04x <- $%02x", addr, data);
     return 0;
 }
 

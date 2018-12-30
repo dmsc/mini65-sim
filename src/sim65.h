@@ -21,6 +21,13 @@
 
 typedef struct sim65s *sim65;
 
+/// Debug levels
+enum sim65_debug {
+    sim65_debug_none = 0,
+    sim65_debug_messages = 1,
+    sim65_debug_trace = 2
+};
+
 /// Creates new simulator state, with no address regions defined.
 sim65 sim65_new();
 /// Adds an uninitialized RAM region.
@@ -31,8 +38,12 @@ void sim65_add_zeroed_ram(sim65 s, unsigned addr, unsigned len);
 void sim65_add_data_ram(sim65 s, unsigned addr, const unsigned char *data, unsigned len);
 /// Adds a ROM region with the given data.
 void sim65_add_data_rom(sim65 s, unsigned addr, const unsigned char *data, unsigned len);
-/// Sets debug flag
-void sim65_set_debug(sim65 s, unsigned level);
+/// Sets debug flag to "level".
+void sim65_set_debug(sim65 s, enum sim65_debug level);
+/// Prints message if debug flag was given debug
+int sim65_dprintf(sim65 s, const char *format, ...);
+/// Prints error message always
+int sim65_eprintf(sim65 s, const char *format, ...);
 
 /// Struct used to pass the register values
 struct sim65_reg
