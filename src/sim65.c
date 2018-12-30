@@ -720,7 +720,10 @@ int sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
     s->r.pc = old_pc;
 
     if (err == err_call_ret)
+    {
+        s->error = 0;
         return 0;
+    }
     else
         return err;
 }

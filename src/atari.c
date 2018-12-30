@@ -192,6 +192,16 @@ static int cio_ok(sim65 s, struct sim65_reg *r, unsigned acc)
     return cio_exit(s, r);
 }
 
+// Calls through DEVTAB offset
+static void call_devtab(sim65 s, struct sim65_reg *regs, uint16_t devtab, int fn)
+{
+    if (fn == DEVR_PUT)
+        poke(s, 0x2F, regs->a);
+    sim65_call(s, regs, 1 + dpeek(s, devtab + 2 * fn));
+    if (fn == DEVR_GET)
+        poke(s, 0x2F, regs->a);
+}
+
 static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     if (regs->x & 0x0F || regs->x > 0x80)
@@ -255,7 +265,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 poke(s, IC(HID), i);
                 dpoke(s, IC(PTL), dpeek(s, devtab + 6));
                 // Found, call open
-                sim65_call(s, regs, dpeek(s, devtab));
+                call_devtab(s, regs, devtab, DEVR_OPEN);
                 return cio_exit(s, regs);
             }
         }
@@ -269,8 +279,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         for (;;)
         {
             // Get single
-            sim65_call(s, regs, dpeek(s, devtab + 4));
-            poke(s, 0x2F, regs->a);
+            call_devtab(s, regs, devtab, DEVR_GET);
             if (regs->y & 0x80)
                 break;
             if (blen)
@@ -291,8 +300,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         if (!blen)
         {
             // Get single
-            sim65_call(s, regs, dpeek(s, devtab + 4));
-            poke(s, 0x2F, regs->a);
+            call_devtab(s, regs, devtab, DEVR_GET);
             return cio_exit(s, regs);
         }
         else
@@ -300,7 +308,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             while (blen)
             {
                 // get
-                sim65_call(s, regs, dpeek(s, devtab + 4));
+                call_devtab(s, regs, devtab, DEVR_GET);
                 if (regs->y & 0x80)
                     break;
                 poke(s, badr, regs->a);
@@ -320,8 +328,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         {
             // Put single
             regs->a = 0x9B;
-            poke(s, 0x2F, regs->a);
-            sim65_call(s, regs, dpeek(s, devtab + 6));
+            call_devtab(s, regs, devtab, DEVR_PUT);
             return cio_exit(s, regs);
         }
         else
@@ -329,8 +336,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             while (blen)
             {
                 regs->a = peek(s, badr);
-                poke(s, 0x2F, regs->a);
-                sim65_call(s, regs, dpeek(s, devtab + 6));
+                call_devtab(s, regs, devtab, DEVR_PUT);
                 if (regs->y & 0x80)
                     break;
                 badr++;
@@ -349,8 +355,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         if (!blen)
         {
             // Put single
-            poke(s, 0x2F, regs->a);
-            sim65_call(s, regs, dpeek(s, devtab + 6));
+            call_devtab(s, regs, devtab, DEVR_PUT);
             return cio_exit(s, regs);
         }
         else
@@ -358,8 +363,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             while (blen)
             {
                 regs->a = peek(s, badr);
-                poke(s, 0x2F, regs->a);
-                sim65_call(s, regs, dpeek(s, devtab + 6));
+                call_devtab(s, regs, devtab, DEVR_PUT);
                 if (regs->y & 0x80)
                     break;
                 badr++;
@@ -376,7 +380,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         if (GET_IC(HID) != 0xFF)
         {
             // Call close handler
-            sim65_call(s, regs, dpeek(s, devtab + 2));
+            call_devtab(s, regs, devtab, DEVR_CLOSE);
         }
         sim65_add_data_ram(s, IC(HID), iocv_empty, 16);
         return cio_ok(s, regs, 0);
