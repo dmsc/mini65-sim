@@ -59,6 +59,7 @@ struct sim65s
     unsigned error;
     unsigned cycles;
     struct sim65_reg r;
+    uint8_t p_valid;
     uint8_t mem[MAXRAM];
     uint8_t mems[MAXRAM];
     sim65_callback cb_read[MAXRAM];
@@ -66,11 +67,30 @@ struct sim65s
     sim65_callback cb_exec[MAXRAM];
 };
 
+static void set_flags(sim65 s, uint8_t mask, uint8_t val)
+{
+    s->r.p = (s->r.p & ~mask) | val;
+    s->p_valid &= ~mask;
+}
+
+static uint8_t get_flags(sim65 s, uint8_t mask)
+{
+    if( 0 != (s->p_valid & mask) )
+        fprintf(stderr, "err: using uninitialized flags at PC=$%4X\n", s->r.pc);
+    return s->r.p & mask;
+}
+
+void sim65_set_flags(sim65 s, uint8_t flag, uint8_t val)
+{
+    set_flags(s, flag, val);
+}
+
 sim65 sim65_new()
 {
     sim65 s = calloc(sizeof(struct sim65s), 1);
     s->r.s = 0xFF;
-    s->r.p = 0x34;
+    s->p_valid = 0xFF;
+    set_flags(s, 0xFF, 0x34);
     memset(s->mems, ms_undef | ms_invalid, MAXRAM * sizeof(s->mems[0]));
     return s;
 }
@@ -279,22 +299,22 @@ static void writeIndY(sim65 s, unsigned addr, unsigned val)
     writeByte(s, 0xFFFF & (addr + s->r.y), val);
 }
 
-#define FLAG_C 0x01
-#define FLAG_Z 0x02
-#define FLAG_I 0x04
-#define FLAG_D 0x08
-#define FLAG_B 0x10
-#define FLAG_V 0x40
-#define FLAG_N 0x80
+#define FLAG_C SIM65_FLAG_C
+#define FLAG_Z SIM65_FLAG_Z
+#define FLAG_I SIM65_FLAG_I
+#define FLAG_D SIM65_FLAG_D
+#define FLAG_B SIM65_FLAG_B
+#define FLAG_V SIM65_FLAG_V
+#define FLAG_N SIM65_FLAG_N
 
-#define SETZ(a) s->r.p = (s->r.p & ~FLAG_Z) | ((a)&0xFF ? 0 : FLAG_Z)
-#define SETC(a) s->r.p = (s->r.p & ~FLAG_C) | ((a) ? FLAG_C : 0)
-#define SETV(a) s->r.p = (s->r.p & ~FLAG_V) | ((a) ? FLAG_V : 0)
-#define SETD(a) s->r.p = (s->r.p & ~FLAG_D) | ((a) ? FLAG_D : 0)
-#define SETN(a) s->r.p = (s->r.p & ~FLAG_N) | ((a)&0x80 ? FLAG_N : 0)
-#define SETI(a) s->r.p = (s->r.p & ~FLAG_I) | ((a) ? FLAG_I : 0)
-#define GETC    (s->r.p & FLAG_C)
-#define GETD    (s->r.p & FLAG_D)
+#define SETZ(a) set_flags(s, FLAG_Z,  (a)&0xFF ? 0 : FLAG_Z)
+#define SETC(a) set_flags(s, FLAG_C,  (a) ? FLAG_C : 0)
+#define SETV(a) set_flags(s, FLAG_V,  (a) ? FLAG_V : 0)
+#define SETD(a) set_flags(s, FLAG_D,  (a) ? FLAG_D : 0)
+#define SETN(a) set_flags(s, FLAG_N,  (a)&0x80 ? FLAG_N : 0)
+#define SETI(a) set_flags(s, FLAG_I,  (a) ? FLAG_I : 0)
+#define GETC    get_flags(s, FLAG_C)
+#define GETD    get_flags(s, FLAG_D)
 
 // Implements ADC instruction, adding the accumulator with the given value.
 static void do_adc(sim65 s, unsigned val)
@@ -390,7 +410,6 @@ static void do_sbc(sim65 s, unsigned val)
 #define EOR s->r.a ^= val; SETZ(s->r.a); SETN(s->r.a)
 #define ADC do_adc(s, val)
 #define SBC do_sbc(s, val)
-#define BIT SETN(val); SETV(val & 0x40); SETZ(s->r.a & val)
 #define ASL SETC(val & 0x80); val = (val << 1) & 0xFF; SETZ(val); SETN(val)
 #define ROL val = (val << 1) | (GETC ? 1 : 0); SETC(val & 256); val &= 0xFF; SETZ(val); SETN(val)
 #define LSR SETC(val & 1); val=(val >> 1) & 0xFF; SETZ(val); SETN(val)
@@ -443,19 +462,35 @@ static void do_sbc(sim65 s, unsigned val)
 #define IMP_Y(op)   s->cycles += 2; val = s->r.y; op; s->r.y = val; SET_ZN
 #define IMP_X(op)   s->cycles += 2; val = s->r.x; op; s->r.x = val; SET_ZN
 
-#define BRA_0(a)   s->cycles += 2; if (!(s->r.p & a)) BRA
-#define BRA_1(a)   s->cycles += 2; if ((s->r.p & a)) BRA
+#define BRA_0(a)   s->cycles += 2; if (!get_flags(s, a)) BRA
+#define BRA_1(a)   s->cycles += 2; if (get_flags(s, a)) BRA
 #define JMP()      s->cycles += 3; s->r.pc = data
 #define JMP16()    s->cycles += 5; s->r.pc = readWord(s, data)
 #define JSR()      do_jsr(s, data)
 #define RTS()      do_rts(s)
 #define RTI()      do_rti(s)
 
-#define CL_F(f)   s->cycles += 2; s->r.p &= ~f
-#define SE_F(f)   s->cycles += 2; s->r.p |= f
+#define CL_F(f)   s->cycles += 2; set_flags(s, f, 0)
+#define SE_F(f)   s->cycles += 2; set_flags(s, f, f)
 
-#define POP_P  s->cycles += 4; POP; s->r.p = val | 0x30
+#define POP_P  s->cycles += 4; POP; set_flags(s, 0xFF, val | 0x30)
 #define POP_A  s->cycles += 4; POP; LDA
+
+// Special case BIT instructions as sometimes are used to SKIP
+void do_bit(sim65 s, uint16_t addr)
+{
+    if (!(s->mems[addr] & ~ms_invalid))
+        s->p_valid |= (FLAG_N | FLAG_V | FLAG_Z);
+    else
+    {
+        uint8_t val = readByte(s, addr);
+        SETN(val);
+        SETV(val & 0x40);
+        SETZ(s->r.a & val);
+    }
+}
+#define BIT_ZP   s->cycles += 3; do_bit(s, data & 0xFF)
+#define BIT_ABS  s->cycles += 4; do_bit(s, data)
 
 static void do_jsr(sim65 s, unsigned data)
 {
@@ -523,7 +558,7 @@ static void next(sim65 s)
         case 0x01:  IND_X(ORA);             break;
         case 0x05:  ZP_R(ORA);              break;
         case 0x06:  ZP_RW(ASL);             break;
-        case 0x08:  PUSH(s->r.p);           break; // PHP
+        case 0x08:  PUSH(get_flags(s,0xFF)); break; // PHP
         case 0x09:  IMM(ORA);               break;
         case 0x0A:  IMP_A(ASL);             break;
         case 0x0D:  ABS_R(ORA);             break;
@@ -538,13 +573,13 @@ static void next(sim65 s)
         case 0x1e:  ABX_RW(ASL);            break;
         case 0x20:  JSR();                  break; // JSR
         case 0x21:  IND_X(AND);             break;
-        case 0x24:  ZP_R(BIT);              break;
+        case 0x24:  BIT_ZP;                 break;
         case 0x25:  ZP_R(AND);              break;
         case 0x26:  ZP_RW(ROL);             break;
         case 0x28:  POP_P;                  break; // PLP
         case 0x29:  IMM(AND);               break;
         case 0x2a:  IMP_A(ROL);             break;
-        case 0x2c:  ABS_R(BIT);             break;
+        case 0x2c:  BIT_ABS;                break;
         case 0x2d:  ABS_R(AND);             break;
         case 0x2e:  ABS_RW(ROL);            break;
         case 0x30:  BRA_1(FLAG_N);          break;

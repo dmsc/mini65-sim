@@ -41,6 +41,16 @@ struct sim65_reg
     uint8_t a, x, y, p, s;
 };
 
+enum sim65_flags {
+    SIM65_FLAG_C = 0x01,
+    SIM65_FLAG_Z = 0x02,
+    SIM65_FLAG_I = 0x04,
+    SIM65_FLAG_D = 0x08,
+    SIM65_FLAG_B = 0x10,
+    SIM65_FLAG_V = 0x40,
+    SIM65_FLAG_N = 0x80
+};
+
 enum sim65_cb_type
 {
     sim65_cb_write = 0,
@@ -64,6 +74,9 @@ void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb, enum sim65_cb
 /// Adds a callback at the given address range of the given type
 void sim65_add_callback_range(sim65 s, unsigned addr, unsigned len,
                               sim65_callback cb, enum sim65_cb_type type);
+
+/// Sets or clear a flag in the simulation flag register
+void sim65_set_flags(sim65 s, uint8_t flag, uint8_t val);
 
 /// Reads from simulation state.
 unsigned sim65_get_byte(sim65 s, unsigned addr);

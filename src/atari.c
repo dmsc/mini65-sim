@@ -172,9 +172,9 @@ static int cio_exit(sim65 s, struct sim65_reg *regs)
 {
     poke(s, IC(STA), regs->y);
     if (regs->y & 0x80)
-        regs->p |= 0x80;
+        sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     else
-        regs->p &= 0x7F;
+        sim65_set_flags(s, SIM65_FLAG_N, 0);
     return 0;
 }
 
@@ -401,7 +401,7 @@ static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     fprintf(stderr, "IOCB NOT OPEN\n");
     regs->y = 0x83;
-    regs->p |= 0x80;
+    sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     return 0;
 }
 
