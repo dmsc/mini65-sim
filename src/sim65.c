@@ -734,12 +734,13 @@ enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
     // And continue the emulator
     enum sim65_error err = sim65_run(s, 0, addr);
 
-    // Now, return to old address
-    s->r.pc = old_pc;
-
     // If we got from a JSR return, simply return ok
     if (err == sim65_err_call_ret)
+    {
+        // Now, return to old address
+        s->r.pc = old_pc;
         err = s->error = sim65_err_none;
+    }
 
     return err;
 }
