@@ -31,16 +31,28 @@ enum sim65_debug {
 /// Errors returned by simulator
 enum sim65_error {
     sim65_err_none        = 0,
-    sim65_err_exec_undef  = -1,
-    sim65_err_exec_uninit = -2,
-    sim65_err_read_undef  = -3,
-    sim65_err_read_uninit = -4,
-    sim65_err_write_undef = -5,
-    sim65_err_write_rom   = -6,
-    sim65_err_break       = -7,
-    sim65_err_invalid_ins = -8,
-    sim65_err_call_ret    = -9,
-    sim65_err_user        = -10
+    sim65_err_exec_undef  = -1,   // 0
+    sim65_err_exec_uninit = -2,   // 1
+    sim65_err_read_undef  = -3,   // 1
+    sim65_err_read_uninit = -4,   // 2
+    sim65_err_write_undef = -5,   // 1
+    sim65_err_write_rom   = -6,   // 2
+    sim65_err_break       = -7,   // 0
+    sim65_err_invalid_ins = -8,   // 0
+    sim65_err_call_ret    = -9,   // 0
+    sim65_err_user        = -10   // 0
+};
+
+/// Error levels - makes simulation return on only certain errors critical most
+enum sim65_error_lvl {
+    /// Only return on unhandled errors: BRK, invalid instructions, undefined memory execution.
+    sim65_errlvl_none = 0,
+    /// Also return on most memory errors, ignore write to ROM and read from uninitialized.
+    sim65_errlvl_memory = 1,
+    /// Return in all errors.
+    sim65_errlvl_full = 2,
+    /// Default error level
+    sim65_errlvl_default = sim65_errlvl_memory
 };
 
 /// Creates new simulator state, with no address regions defined.
@@ -55,6 +67,8 @@ void sim65_add_data_ram(sim65 s, unsigned addr, const unsigned char *data, unsig
 void sim65_add_data_rom(sim65 s, unsigned addr, const unsigned char *data, unsigned len);
 /// Sets debug flag to "level".
 void sim65_set_debug(sim65 s, enum sim65_debug level);
+/// Sets the error level to "level"
+void sim65_set_error_level(sim65 s, enum sim65_error_lvl level);
 /// Prints message if debug flag was given debug
 int sim65_dprintf(sim65 s, const char *format, ...);
 /// Prints error message always
@@ -122,6 +136,9 @@ enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
 
 /// Prints the current register values
 void sim65_print_reg(sim65 s);
+
+/// Returns memory address of last error
+uint16_t sim65_error_addr(sim65 s);
 
 /// Returns string representing error value
 const char *sim65_error_str(sim65 s, enum sim65_error e);

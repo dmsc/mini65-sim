@@ -47,6 +47,8 @@ struct sim65s
 {
     enum sim65_debug debug;
     enum sim65_error error;
+    enum sim65_error_lvl errlvl;
+    unsigned err_addr;
     unsigned cycles;
     struct sim65_reg r;
     uint8_t p_valid;
@@ -57,6 +59,43 @@ struct sim65s
     sim65_callback cb_exec[MAXRAM];
     char *labels;
 };
+
+// Check if we should exit given this error, or simply log it
+static int get_error_exit(sim65 s)
+{
+    int e = 0;
+    switch (s->error)
+    {
+        case sim65_err_none:
+            // Never exit and don't print the error
+            return 0;
+        case sim65_err_read_uninit:
+        case sim65_err_write_rom:
+            e = (s->errlvl >= sim65_errlvl_full);
+            break;
+        case sim65_err_exec_uninit:
+        case sim65_err_read_undef:
+        case sim65_err_write_undef:
+            e = (s->errlvl >= sim65_errlvl_memory);
+            break;
+        case sim65_err_exec_undef:
+        case sim65_err_break:
+        case sim65_err_invalid_ins:
+        case sim65_err_call_ret:
+        case sim65_err_user:
+            // Exit always
+            return 1;
+    }
+    if (!e)
+    {
+        sim65_dprintf(s, "%s at address %04x", sim65_error_str(s, s->error),
+                      s->err_addr);
+        s->error = sim65_err_none;
+        return 0;
+    }
+    else
+        return s->error;
+}
 
 static char *get_label(sim65 s, uint16_t addr)
 {
@@ -184,18 +223,21 @@ unsigned sim65_get_byte(sim65 s, unsigned addr)
     return s->mem[addr];
 }
 
-void set_error(sim65 s, int e)
+void set_error(sim65 s, int e, uint16_t addr)
 {
     if (e < 0 && !s->error)
+    {
         s->error = (enum sim65_error)e;
+        s->err_addr = addr;
+    }
 }
 
 static uint8_t readPc_slow(sim65 s, uint16_t addr)
 {
     if (s->mems[addr] & ms_undef)
-        set_error(s, sim65_err_exec_undef);
+        set_error(s, sim65_err_exec_undef, addr);
     else
-        set_error(s, sim65_err_exec_uninit);
+        set_error(s, sim65_err_exec_uninit, addr);
     return s->mem[addr];
 }
 
@@ -212,18 +254,17 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
     if ((s->mems[addr] & ms_callback) && s->cb_read[addr])
     {
         int e = s->cb_read[addr](s, &s->r, addr, sim65_cb_read);
-        set_error(s, e);
+        set_error(s, e, addr);
         return e;
     }
     else
     {
         if (s->mems[addr] & ms_undef)
-            set_error(s, sim65_err_read_undef);
+            set_error(s, sim65_err_read_undef, addr);
         else
         {
-            sim65_eprintf(s, "reading uninitialized value at $%4X", addr);
-            // set_error(s, sim65_err_read_uninit); // Common enough!
-            s->mems[addr] &= ~ms_invalid;
+            set_error(s, sim65_err_read_uninit, addr);
+            s->mems[addr] &= ~ms_invalid; // Initializes the memory
         }
         return s->mem[addr];
     }
@@ -242,11 +283,11 @@ static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
         s->mems[addr] = 0;
     }
     else if ((s->mems[addr] & ms_callback) && s->cb_write[addr])
-        set_error(s, s->cb_write[addr](s, &s->r, addr, val));
+        set_error(s, s->cb_write[addr](s, &s->r, addr, val), addr);
     else if (s->mems[addr] & ms_undef)
-        set_error(s, sim65_err_write_undef);
+        set_error(s, sim65_err_write_undef, addr);
     else if (s->mems[addr] & ms_rom)
-        set_error(s, sim65_err_write_rom);
+        set_error(s, sim65_err_write_rom, addr);
 }
 
 static inline void writeByte(sim65 s, uint16_t addr, uint8_t val)
@@ -524,8 +565,8 @@ static void next(sim65 s)
     // See if out vector
     if (s->cb_exec[s->r.pc])
     {
-        set_error(s, s->cb_exec[s->r.pc](s, &s->r, s->r.pc, sim65_cb_exec));
-        if (s->error)
+        set_error(s, s->cb_exec[s->r.pc](s, &s->r, s->r.pc, sim65_cb_exec), s->r.pc);
+        if (get_error_exit(s))
             return;
     }
 
@@ -545,7 +586,7 @@ static void next(sim65 s)
 
     switch (ins)
     {
-        case 0x00:  set_error(s, sim65_err_break); break;
+        case 0x00:  set_error(s, sim65_err_break, s->r.pc - 1); break;
         case 0x01:  IND_X(ORA);             break;
         case 0x05:  ZP_R(ORA);              break;
         case 0x06:  ZP_RW(ASL);             break;
@@ -696,7 +737,7 @@ static void next(sim65 s)
         case 0xf9:  ABY_R(SBC);             break;
         case 0xfd:  ABX_R(SBC);             break;
         case 0xfe:  ABX_RW(INC);            break;
-        default:    set_error(s, sim65_err_invalid_ins);
+        default:    set_error(s, sim65_err_invalid_ins, s->r.pc - 1);
     }
 }
 
@@ -707,7 +748,7 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
 
     s->error = sim65_err_none;
     s->r.pc = addr;
-    while (!s->error)
+    while (!get_error_exit(s))
         next(s);
 
     if (regs)
@@ -754,6 +795,19 @@ enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
     return err;
 }
 
+void sim65_set_debug(sim65 s, enum sim65_debug level)
+{
+    s->debug = level;
+}
+
+void sim65_set_error_level(sim65 s, enum sim65_error_lvl level)
+{
+    s->errlvl = level;
+}
+
+// --------------------------------------------------------------------
+// Trace printing functions
+// --------------------------------------------------------------------
 static const char *hex_digits = "0123456789ABCDEF";
 static char *hex2(char *c, uint8_t x)
 {
@@ -808,11 +862,6 @@ static void print_mem(char *buf, sim65 s, unsigned addr)
         memcpy(buf, "[UU]", 4);
     else
         memcpy(buf, "[NN]", 4);
-}
-
-void sim65_set_debug(sim65 s, enum sim65_debug level)
-{
-    s->debug = level;
 }
 
 static void print_mem_count(char *buf, sim65 s, unsigned addr, unsigned len)
@@ -1293,6 +1342,11 @@ int sim65_eprintf(sim65 s, const char *format, ...)
     fprintf(stderr, "\n");
     va_end(ap);
     return size;
+}
+
+uint16_t sim65_error_addr(sim65 s)
+{
+    return s->err_addr;
 }
 
 const char *sim65_error_str(sim65 s, enum sim65_error e)

@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 static void print_help(const char *name)
@@ -29,6 +30,7 @@ static void print_help(const char *name)
                     " -h: Show this help\n"
                     " -d: Print debug messages\n"
                     " -t: Print simulation trace\n"
+                    " -e <lvl>: Sets the error level to 'none', 'mem' or 'full'\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n",
             name);
@@ -54,16 +56,30 @@ int main(int argc, char **argv)
     int opt;
     unsigned rom = 0;
     const char *lblname = 0;
-    enum sim65_debug dbgLevel = sim65_debug_none;
-    while ((opt = getopt(argc, argv, "tdhr:l:")) != -1)
+
+    s = sim65_new();
+    if (!s)
+        exit_error("internal error", argv[0]);
+
+    while ((opt = getopt(argc, argv, "tdhr:l:e:")) != -1)
     {
         switch (opt)
         {
             case 't': // trace
-                dbgLevel = sim65_debug_trace;
+                sim65_set_debug(s, sim65_debug_trace);
                 break;
             case 'd': // debug
-                dbgLevel = dbgLevel != sim65_debug_none ? dbgLevel : sim65_debug_messages;
+                sim65_set_debug(s, sim65_debug_messages);
+                break;
+            case 'e': // error level
+                if (!strcmp(optarg, "n") || !strcmp(optarg, "none"))
+                    sim65_set_error_level(s, sim65_errlvl_none);
+                else if (!strcmp(optarg, "f") || !strcmp(optarg, "full"))
+                    sim65_set_error_level(s, sim65_errlvl_full);
+                else if (!strcmp(optarg, "m") || !strcmp(optarg, "mem"))
+                    sim65_set_error_level(s, sim65_errlvl_memory);
+                else
+                    print_error("invalid error level", argv[0]);
                 break;
             case 'h': // help
                 print_help(argv[0]);
@@ -84,13 +100,6 @@ int main(int argc, char **argv)
     else if (optind + 1 != argc)
         print_error("only one filename allowed", argv[0]);
     const char *fname = argv[optind];
-
-    s = sim65_new();
-    if (!s)
-        exit_error("internal error", argv[0]);
-
-    // Set debug level
-    sim65_set_debug(s, dbgLevel);
 
     // Load labels file
     if (lblname)
@@ -117,6 +126,7 @@ int main(int argc, char **argv)
     // start
     if (e)
         // Prints error message
-        sim65_eprintf(s, "simulator returned %s.", sim65_error_str(s, e));
+        sim65_eprintf(s, "simulator returned %s at address %04x.",
+                      sim65_error_str(s, e), sim65_error_addr(s));
     return 0;
 }
