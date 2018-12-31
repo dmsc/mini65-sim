@@ -745,6 +745,8 @@ static void atari_bios_init(sim65 s)
     unsigned i;
     // Adds 32 bytes of zeroed RAM at $80
     sim65_add_zeroed_ram(s, 0x80, 0x20);
+    // Adds a ROM at 0xE000, to support reads to ROM start
+    sim65_add_data_rom(s, 0xE000, (unsigned char*)"\x60", 1);
     // CIOV
     add_rts_callback(s, CIOV, 1, sim_CIOV);
     // Init empty
