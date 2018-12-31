@@ -1064,7 +1064,7 @@ enum sim65_error atari_xex_load(sim65 s, const char *name)
 {
     const uint16_t RUNAD = 0x2E0;
     const uint16_t INITAD = 0x2E2;
-    int state = 0, saddr = 0, eaddr = 0, start = 0;
+    int state = 0, saddr = 0, eaddr = 0, start = 0, vec;
     FILE *f = fopen(name, "rb");
     if (!f)
         return sim65_err_user;
@@ -1079,8 +1079,14 @@ enum sim65_error atari_xex_load(sim65 s, const char *name)
         int c = getc(f);
         if (c == EOF)
         {
-            if (dpeek(s, RUNAD) != 0)
-                start = dpeek(s, RUNAD);
+            vec = dpeek(s, RUNAD);
+            if (vec != 0)
+            {
+                sim65_dprintf(s, "call RUN vector at $%04X", vec);
+                start = vec;
+            }
+            else
+                sim65_dprintf(s, "call XEX load at $%04X", start);
             // Run start address and exit
             e = sim65_call(s, 0, start);
             break;
@@ -1115,10 +1121,12 @@ enum sim65_error atari_xex_load(sim65 s, const char *name)
                     continue;
                 }
                 // End of data section, test if we have a new INIT address
-                if (dpeek(s, INITAD) != 0)
+                vec = dpeek(s, INITAD);
+                if (vec != 0)
                 {
                     // Execute!
-                    e = sim65_call(s, 0, dpeek(s, INITAD));
+                    sim65_dprintf(s, "call INIT vector at $%04X", vec);
+                    e = sim65_call(s, 0, vec);
                     // Celar INITAD
                     dpoke(s, INITAD, 0);
                 }
@@ -1145,12 +1153,38 @@ int atari_rom_load(sim65 s, int addr, const char *name)
     int c, saddr = addr;
     FILE *f = fopen(name, "rb");
     if (!f)
-        return -1;
+        return sim65_err_user;
 
+    // Load full ROM
     while (EOF != (c = getc(f)))
     {
         unsigned char data = c;
         sim65_add_data_rom(s, addr++, &data, 1);
     }
-    return addr - saddr;
+    fclose(f);
+
+    // Check if we have a standard Atari ROM
+    if (saddr == 0xA000 && addr == 0xC000)
+    {
+        uint16_t flag = dpeek(s, 0xBFFC);
+        uint16_t rvec = dpeek(s, 0xBFFA);
+        uint16_t ivec = dpeek(s, 0xBFFE);
+        sim65_dprintf(s, "load Atari ROM, RUN=%04X FLAG=%04X INIT=%04X", rvec, flag, ivec);
+        if ((flag & 0xFF) == 0 && ivec < 0xC000 && ivec >= 0xA000)
+        {
+            // Run init vector
+            sim65_dprintf(s, "call INIT vector at $%04X", ivec);
+            enum sim65_error e = sim65_call(s, 0, ivec);
+            if (e)
+                return e;
+        }
+        if (rvec < 0xC000 && rvec >= 0xA000)
+        {
+            sim65_dprintf(s, "call RUN vector at $%04X", rvec);
+            return sim65_call(s, 0, rvec);
+        }
+    }
+    // Else, we run from the ROM start
+    sim65_dprintf(s, "call ROM start at $%04X", saddr);
+    return sim65_call(s, 0, saddr);
 }

@@ -112,10 +112,9 @@ int main(int argc, char **argv)
     enum sim65_error e;
     if (rom)
     {
-        int l = atari_rom_load(s, rom, fname);
-        if (l < 0)
+        e = atari_rom_load(s, rom, fname);
+        if (e == sim65_err_user)
             exit_error("error reading ROM file", argv[0]);
-        e = sim65_call(s, 0, rom);
     }
     else
     {
