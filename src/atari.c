@@ -954,6 +954,8 @@ static const struct
     { "COLOR3", 0x02C7 }, // 1-byte playfield 3 color/luminance
     { "COLOR4", 0x02C8 }, // 1-byte background color/luminance
 
+    { "RUNAD",    0x02E0 }, // Binary load RUN ADDRESS
+    { "INITAD",   0x02E2 }, // Binary load INIT ADDRESS
     { "RAMSIZ",   0x02E4 }, // RAM SIZE (HI BYTE ONLY)
     { "MEMTOP",   0x02E5 }, // TOP OF AVAILABLE USER MEMORY
     { "MEMTOP+1", 0x02E6 },
@@ -1058,67 +1060,73 @@ void atari_init(sim65 s, int load_labels)
     }
 }
 
-int atari_xex_load(sim65 s, const char *name)
+enum sim65_error atari_xex_load(sim65 s, const char *name)
 {
-    int state = 0, saddr = 0, eaddr = 0, start = 0, loadad = 0, runad = 0;
+    const uint16_t RUNAD = 0x2E0;
+    const uint16_t INITAD = 0x2E2;
+    int state = 0, saddr = 0, eaddr = 0, start = 0;
     FILE *f = fopen(name, "rb");
     if (!f)
-        return -1;
-    do
+        return sim65_err_user;
+    // Error return
+    enum sim65_error e = sim65_err_none;
+    // Store 0 into RUNAD and INITAD
+    dpoke(s, RUNAD, 0);
+    dpoke(s, INITAD, 0);
+    while (e == sim65_err_none)
     {
         unsigned char data;
         int c = getc(f);
         if (c == EOF)
         {
-            if (start)
-                return start;
-            else if (runad)
-                return runad;
-            else
-                return loadad;
+            if (dpeek(s, RUNAD) != 0)
+                start = dpeek(s, RUNAD);
+            // Run start address and exit
+            e = sim65_call(s, 0, start);
+            break;
         }
         switch (state)
         {
-            case 0:
-            case 1:
+            case 0:     // 0: Read first $FF
+            case 1:     // 1: Read second $FF
                 if (c != 0xFF)
                     return -1;
                 break;
-            case 2:
+            case 2:     // 2: Read first byte of load address
                 saddr = c;
                 break;
-            case 3:
-                loadad = saddr |= c << 8;
-                if (!runad)
-                    runad = loadad;
+            case 3:     // 3: Read second byte of load address
+                saddr |= c << 8;
+                // Store start address - this is the run address if none is given
+                start = saddr;
                 break;
-            case 4:
+            case 4:     // 4: Read first byte of load-end address
                 eaddr = c;
                 break;
-            case 5:
+            case 5:     // 5: Read second byte of load-end address
                 eaddr |= c << 8;
                 break;
-            case 6:
+            case 6:     // 6: Read data from saddr to eaddr
                 data = c;
                 sim65_add_data_ram(s, saddr, &data, 1);
-                if (saddr == 0x02E0)
-                    start = (start & 0xFF00) | data;
-                else if (saddr == 0x02E1)
-                    start = (start & 0xFF) | (data << 8);
-                if (saddr == 0x02E2)
-                    runad = (runad & 0xFF00) | data;
-                else if (saddr == 0x02E3)
-                    runad = (runad & 0xFF) | (data << 8);
                 if (saddr != eaddr)
                 {
                     saddr++;
                     continue;
                 }
+                // End of data section, test if we have a new INIT address
+                if (dpeek(s, INITAD) != 0)
+                {
+                    // Execute!
+                    e = sim65_call(s, 0, dpeek(s, INITAD));
+                    // Celar INITAD
+                    dpoke(s, INITAD, 0);
+                }
                 break;
-            case 7:
+            case 7:     // 7: Read first byte of new header
                 saddr = c;
                 break;
-            case 8:
+            case 8:     // 8: Read second byte of new header, skip if value is $FFFF
                 saddr |= c << 8;
                 if (saddr == 0xFFFF)
                     state = 2;
@@ -1127,7 +1135,9 @@ int atari_xex_load(sim65 s, const char *name)
                 continue;
         }
         state++;
-    } while (1);
+    };
+    fclose(f);
+    return e;
 }
 
 int atari_rom_load(sim65 s, int addr, const char *name)

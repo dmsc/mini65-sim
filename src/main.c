@@ -51,7 +51,7 @@ static void exit_error(const char *text, const char *name)
 int main(int argc, char **argv)
 {
     sim65 s;
-    int start, opt;
+    int opt;
     unsigned rom = 0;
     const char *lblname = 0;
     enum sim65_debug dbgLevel = sim65_debug_none;
@@ -99,24 +99,22 @@ int main(int argc, char **argv)
     // Initialize Atari emu
     atari_init(s, lblname != 0);
 
-    // Read file
+    // Read and execute file
+    enum sim65_error e;
     if (rom)
     {
         int l = atari_rom_load(s, rom, fname);
         if (l < 0)
             exit_error("error reading ROM file", argv[0]);
-        start = rom;
+        e = sim65_call(s, 0, rom);
     }
     else
     {
-        start = atari_xex_load(s, fname);
-        if (start < 0)
+        e = atari_xex_load(s, fname);
+        if (e == sim65_err_user)
             exit_error("error reading binary file", argv[0]);
-        if (!start)
-            exit_error("missing start address", argv[0]);
     }
     // start
-    enum sim65_error e = sim65_call(s, 0, start);
     if (e)
         // Prints error message
         sim65_eprintf(s, "simulator returned %s.", sim65_error_str(s, e));
