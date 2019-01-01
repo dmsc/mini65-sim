@@ -426,9 +426,9 @@ static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
+static uint8_t editr_last_row = 0;
 static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    static uint8_t last_row = 0;
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -455,9 +455,9 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 if (peek(s, ROWCRS) < 24)
                     poke(s, ROWCRS, peek(s, ROWCRS) + 1);
             }
-            else if (peek(s, ROWCRS) != last_row)
+            else if (peek(s, ROWCRS) != editr_last_row)
                 atari_put_char(0x9B);
-            last_row = peek(s, ROWCRS);
+            editr_last_row = peek(s, ROWCRS);
             atari_put_char(regs->a);
             regs->y = 1;
             return 0;
@@ -1066,6 +1066,9 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char
         atari_put_char = put_char;
     else
         atari_put_char = sys_put_char;
+
+    // Static variables
+    editr_last_row = 0;
 
     // Add 52k of uninitialized ram, maximum possible for the Atari architecture.
     sim65_add_ram(s, 0, MAX_RAM);
