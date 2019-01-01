@@ -20,8 +20,9 @@
 // Forward
 typedef struct sim65s *sim65;
 
-// Init bios callbacks
-void atari_init(sim65 s, int load_labels);
+// Init bios callbacks, optionally passing a callback to print a
+// character and read a character
+void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char)(int) );
 // Load (and RUN) XEX file
 enum sim65_error atari_xex_load(sim65 s, const char *name);
 // Load ROM file

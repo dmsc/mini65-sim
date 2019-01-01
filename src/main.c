@@ -106,7 +106,7 @@ int main(int argc, char **argv)
         sim65_lbl_load(s, lblname);
 
     // Initialize Atari emu
-    atari_init(s, lblname != 0);
+    atari_init(s, lblname != 0, 0, 0);
 
     // Read and execute file
     enum sim65_error e;

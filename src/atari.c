@@ -25,6 +25,30 @@
 #include <string.h>
 #include <sys/time.h>
 
+static int (*atari_get_char)(void);
+static void (*atari_put_char)(int);
+
+// Standard put/get character
+static int sys_get_char(void)
+{
+    int c   = getchar();
+    if (c == '\n')
+        c = 0x9B;
+    return c;
+}
+
+static void sys_put_char(int c)
+{
+    if (c == 0x9b)
+        putchar('\n');
+    else if (c == 0x12)
+        putchar('-');
+    else
+        putchar(c);
+    fflush(stdout);
+}
+
+
 // Utility functions
 static int cb_error(sim65 s, unsigned addr)
 {
@@ -59,17 +83,6 @@ static void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callbac
     sim65_add_callback_range(s, addr, len, cb, sim65_cb_exec);
     for (; len > 0; addr++, len--)
         sim65_add_data_rom(s, addr, &rts, 1);
-}
-
-static void pchar(unsigned c)
-{
-    if (c == 0x9b)
-        putchar('\n');
-    else if (c == 0x12)
-        putchar('-');
-    else
-        putchar(c);
-    fflush(stdout);
 }
 
 // EDITOR defs
@@ -445,9 +458,9 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                     poke(s, ROWCRS, peek(s, ROWCRS) + 1);
             }
             else if (peek(s, ROWCRS) != last_row)
-                pchar(0x9B);
+                atari_put_char(0x9B);
             last_row = peek(s, ROWCRS);
-            pchar(regs->a);
+            atari_put_char(regs->a);
             regs->y = 1;
             return 0;
         case DEVR_STATUS:
@@ -504,12 +517,10 @@ static int sim_KEYBD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return 0;
         case DEVR_GET:
         {
-            int c   = getchar();
+            int c   = atari_get_char();
             regs->y = 1;
             if (c == EOF)
                 regs->y = 136;
-            else if (c == '\n')
-                regs->a = 0x9b;
             else
                 regs->a = c;
             return 0;
@@ -1046,8 +1057,18 @@ static const struct
     { 0, 0 }
 };
 
-void atari_init(sim65 s, int load_labels)
+void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char)(int) )
 {
+    // Init callbacks
+    if (get_char)
+        atari_get_char = get_char;
+    else
+        atari_get_char = sys_get_char;
+    if (put_char)
+        atari_put_char = put_char;
+    else
+        atari_put_char = sys_put_char;
+
     // Add 52k of uninitialized ram, maximum possible for the Atari architecture.
     sim65_add_ram(s, 0, MAX_RAM);
     // Add hardware handlers
