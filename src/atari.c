@@ -438,12 +438,10 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return 0;
         case DEVR_GET:
         {
-            int c   = getchar();
+            int c   = atari_get_char();
             regs->y = 1;
             if (c == EOF)
                 regs->y = 136;
-            else if (c == '\n')
-                regs->a = 0x9b;
             else
                 regs->a = c;
             return 0;
