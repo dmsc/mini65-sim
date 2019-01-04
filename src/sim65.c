@@ -1408,3 +1408,8 @@ int sim65_lbl_load(sim65 s, const char *lblname)
     }
     return 0;
 }
+
+unsigned long sim65_get_cycles(const sim65 s)
+{
+    return s->cycles;
+}

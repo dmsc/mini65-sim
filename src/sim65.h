@@ -148,3 +148,7 @@ int sim65_lbl_load(sim65 s, const char *lblname);
 
 /// Adds a single label
 void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl);
+
+/// Returns number of cycles executed
+unsigned long sim65_get_cycles(const sim65 s);
+
