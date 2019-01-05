@@ -23,7 +23,9 @@
 #include <string.h>
 #include <unistd.h>
 
-static void print_help(const char *name)
+static char *prog_name;
+
+static void print_help(void)
 {
     fprintf(stderr, "Usage: %s [options] <filename>\n"
                     "Options:\n"
@@ -33,20 +35,20 @@ static void print_help(const char *name)
                     " -e <lvl>: Sets the error level to 'none', 'mem' or 'full'\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n",
-            name);
+            prog_name);
 }
 
-static void print_error(const char *text, const char *name)
+static void print_error(const char *text)
 {
     if (text)
-        fprintf(stderr, "%s: %s\n", name, text);
-    fprintf(stderr,"%s: Try '-h' for help.\n", name);
+        fprintf(stderr, "%s: %s\n", prog_name, text);
+    fprintf(stderr,"%s: Try '-h' for help.\n", prog_name);
     exit(1);
 }
 
-static void exit_error(const char *text, const char *name)
+static void exit_error(const char *text)
 {
-    fprintf(stderr, "%s: %s.\n", name, text);
+    fprintf(stderr, "%s: %s.\n", prog_name, text);
     exit(1);
 }
 
@@ -57,9 +59,10 @@ int main(int argc, char **argv)
     unsigned rom = 0;
     const char *lblname = 0;
 
+    prog_name = argv[0];
     s = sim65_new();
     if (!s)
-        exit_error("internal error", argv[0]);
+        exit_error("internal error");
 
     while ((opt = getopt(argc, argv, "tdhr:l:e:")) != -1)
     {
@@ -79,10 +82,10 @@ int main(int argc, char **argv)
                 else if (!strcmp(optarg, "m") || !strcmp(optarg, "mem"))
                     sim65_set_error_level(s, sim65_errlvl_memory);
                 else
-                    print_error("invalid error level", argv[0]);
+                    print_error("invalid error level");
                 break;
             case 'h': // help
-                print_help(argv[0]);
+                print_help();
                 return 0;
             case 'r': // rom address
                 rom = strtol(optarg, 0, 0);
@@ -91,14 +94,14 @@ int main(int argc, char **argv)
                 lblname = optarg;
                 break;
             default:
-                print_error(0, argv[0]);
+                print_error(0);
         }
     }
 
     if (optind >= argc)
-        print_error("missing filename", argv[0]);
+        print_error("missing filename");
     else if (optind + 1 != argc)
-        print_error("only one filename allowed", argv[0]);
+        print_error("only one filename allowed");
     const char *fname = argv[optind];
 
     // Load labels file
@@ -108,19 +111,23 @@ int main(int argc, char **argv)
     // Initialize Atari emu
     atari_init(s, lblname != 0, 0, 0);
 
+    // Set profile info
+    if (profname)
+        sim65_set_profiling(s, 1);
+
     // Read and execute file
     enum sim65_error e;
     if (rom)
     {
         e = atari_rom_load(s, rom, fname);
         if (e == sim65_err_user)
-            exit_error("error reading ROM file", argv[0]);
+            exit_error("error reading ROM file");
     }
     else
     {
         e = atari_xex_load(s, fname);
         if (e == sim65_err_user)
-            exit_error("error reading binary file", argv[0]);
+            exit_error("error reading binary file");
     }
     // start
     if (e)
