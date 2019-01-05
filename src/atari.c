@@ -224,7 +224,7 @@ static void call_devtab(sim65 s, struct sim65_reg *regs, uint16_t devtab, int fn
 
 static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    if (regs->x & 0x0F || regs->x > 0x80)
+    if (regs->x & 0x0F || regs->x >= 0x80)
         return cio_error(s, regs, "invalid value of X register", 134);
 
     unsigned hid  = GET_IC(HID);
@@ -398,13 +398,15 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     else if (com == 12)
     {
         // CLOSE
+        regs->y = 1;
         if (GET_IC(HID) != 0xFF)
         {
             // Call close handler
             call_devtab(s, regs, devtab, DEVR_CLOSE);
         }
-        sim65_add_data_ram(s, IC(HID), iocv_empty, 16);
-        return cio_ok(s, regs, 0);
+        poke(s, IC(HID), 0xFF);
+        dpoke(s, IC(PTL), CIOERR - 1);
+        return cio_exit(s, regs);
     }
     else if (com == 13)
     {
