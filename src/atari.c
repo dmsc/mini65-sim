@@ -21,6 +21,7 @@
 #include "sim65.h"
 #include <errno.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/time.h>
@@ -48,6 +49,130 @@ static void sys_put_char(int c)
     fflush(stdout);
 }
 
+
+static int atari_printf(const char *format, ...)
+{
+    char buf[256];
+    int size;
+    va_list ap;
+    va_start(ap, format);
+    size = vsnprintf(buf, 255, format, ap);
+    va_end(ap);
+    for (char *p = buf; *p; p++)
+        atari_put_char( 0xFF & (*p) );
+    return size;
+}
+
+// Screen routines callback
+enum scr_command {
+    scr_cmd_graphics,
+    scr_cmd_locate,
+    scr_cmd_plot,
+    scr_cmd_drawto,
+    scr_cmd_fillto
+};
+
+static int sys_screen(enum scr_command cmd, int x, int y, int data)
+{
+    static int sx = 40, sy = 24, numc = 256;
+
+    switch (cmd)
+    {
+        case scr_cmd_graphics:
+            atari_printf("SCREEN: set graphics %d%s%s\n", data & 15,
+                         data & 16 ? " with text window": "",
+                         data & 32 ? " don't clear" : "" );
+            switch (data & 15)
+            {
+                case 0:
+                case 12:
+                    sx = 40;
+                    sy = 24;
+                    numc = 256;
+                    break;
+                case 1:
+                    sx = 20;
+                    sy = 24;
+                    numc = 256;
+                    break;
+                case 2:
+                    sx = 20;
+                    sy = 12;
+                    numc = 256;
+                    break;
+                case 3:
+                    sx = 40;
+                    sy = 24;
+                    numc = 4;
+                    break;
+                case 4:
+                    sx = 80;
+                    sy = 48;
+                    numc = 2;
+                    break;
+                case 5:
+                    sx = 80;
+                    sy = 48;
+                    numc = 4;
+                    break;
+                case 6:
+                    sx = 160;
+                    sy = 96;
+                    numc = 2;
+                    break;
+                case 7:
+                    sx = 160;
+                    sy = 96;
+                    numc = 4;
+                    break;
+                case 8:
+                    sx = 320;
+                    sy = 192;
+                    numc = 2;
+                    break;
+                case 9:
+                case 10:
+                case 11:
+                    sx = 80;
+                    sy = 192;
+                    numc = 16;
+                    break;
+                case 13:
+                    sx = 40;
+                    sy = 12;
+                    numc = 256;
+                    break;
+                case 14:
+                    sx = 160;
+                    sy = 192;
+                    numc = 2;
+                    break;
+                case 15:
+                    sx = 160;
+                    sy = 192;
+                    numc = 4;
+                    break;
+            }
+            return 0;
+            break;
+        case scr_cmd_locate:
+            atari_printf("SCREEN: locate %d,%d\n", x, y);
+            break;
+        case scr_cmd_plot:
+            atari_printf("SCREEN: plot %d,%d  color %d\n", x, y, data % numc);
+            break;
+        case scr_cmd_drawto:
+            atari_printf("SCREEN: draw to %d,%d  color %d\n", x, y, data % numc);
+            break;
+        case scr_cmd_fillto:
+            atari_printf("SCREEN: fill to %d,%d  color %d, fill color %d\n",
+                    x, y, (data & 0xFF) % numc, (data >>8) % numc );
+            break;
+    }
+    if (x < 0 || x >= sx || y < 0 || y >= sy )
+        return -1;
+    return 0;
+}
 
 // Utility functions
 static int cb_error(sim65 s, unsigned addr)
@@ -90,6 +215,9 @@ static void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callbac
 #define RMARGN (0x53) // right margin
 #define ROWCRS (0x54) // cursor row
 #define COLCRS (0x55) // cursor column (2 byte)
+// SCREEN defs
+#define ATACHR (0x2FB)
+#define FILDAT (0x2FD)
 
 #define LO(a) ((a)&0xFF)
 #define HI(a) ((a) >> 8)
@@ -127,12 +255,12 @@ static const unsigned char hatab_default[] = {
 #define CASET_BASE 0xE520
 #define DISKD_BASE 0xE528
 // Offsets
-#define DEVR_OPEN (0)
-#define DEVR_CLOSE (1)
-#define DEVR_GET (2)
-#define DEVR_PUT (3)
-#define DEVR_STATUS (4)
-#define DEVR_SPECIAL (5)
+#define DEVR_OPEN (0)           // 3
+#define DEVR_CLOSE (1)          // 12
+#define DEVR_GET (2)            // 4,5,6,7
+#define DEVR_PUT (3)            // 8.9,10,11
+#define DEVR_STATUS (4)         // 13
+#define DEVR_SPECIAL (5)        // 14 and up
 #define DEVR_INIT (6)
 
 #define DEVH_E(a) LO(a - 1), HI(a - 1)
@@ -238,17 +366,9 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     if (hid == 0xFF && com != 3 && com < 12)
         return cio_error(s, regs, "channel not open", 133);
 
-    if (com < 3 || com > 14)
+    if (com < 3)
     {
         sim65_dprintf(s, "CIO CMD = %d", com);
-        if (com == 37)
-        {
-            unsigned ax3 = GET_IC(AX3);
-            unsigned ax4 = GET_IC(AX4);
-            unsigned ax5 = GET_IC(AX5);
-            sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
-            return cio_ok(s, regs, 0);
-        }
         return cio_error(s, regs, "invalid command", 132);
     }
 
@@ -412,9 +532,20 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     {
         // GET STATUS
     }
-    else if (com == 14)
+    else if (com >= 14)
     {
         // SPECIAL
+        if (com == 37)
+        {
+            unsigned ax3 = GET_IC(AX3);
+            unsigned ax4 = GET_IC(AX4);
+            unsigned ax5 = GET_IC(AX5);
+            sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
+            return cio_ok(s, regs, 0);
+        }
+        // Call close handler
+        call_devtab(s, regs, devtab, DEVR_SPECIAL);
+        return cio_exit(s, regs);
     }
 
     return 0;
@@ -479,26 +610,42 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
+    // We need IOCB data
+    unsigned chn  = (regs->x >> 4);
+    unsigned cmd  = GET_IC(COM);
+    unsigned ax1  = GET_IC(AX1);
+    unsigned ax2  = GET_IC(AX2);
+    int x = dpeek(s, COLCRS);
+    int y = peek(s, ROWCRS);
     switch (addr & 7)
     {
         case DEVR_OPEN:
-            sim65_dprintf(s, "SCREN cmd OPEN #%d, %d, %d",
-                         (regs->x >> 4), GET_IC(AX1), GET_IC(AX2));
+            sim65_dprintf(s, "SCREEN: open mode %d", 0x10 ^ ((ax1 & 0xF0) | (ax2 & 0x0F)));
+            regs->y = sys_screen(scr_cmd_graphics, x, y, (ax2 & 0x0F) | (ax1 & 0xF0));
             return 0;
         case DEVR_CLOSE:
-            return 0;
+            sim65_dprintf(s, "SCREEN: close");
+            return 0; // OK
         case DEVR_GET:
-            sim65_dprintf(s, "SCREN cmd GET");
+            sim65_dprintf(s, "SCREEN: get (locate) @(%d, %d)", x, y);
+            regs->y = sys_screen(scr_cmd_locate, x, y, 0);
+            regs->a = 0;
             return 0;
         case DEVR_PUT:
-            sim65_dprintf(s, "SCREN cmd PUT %d", regs->a);
-            regs->y = 1;
+            sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, regs->a);
+            regs->y = sys_screen(scr_cmd_plot, x, y, regs->a);
             return 0;
         case DEVR_STATUS:
             sim65_dprintf(s, "SCREN cmd STATUS");
             return 0;
         case DEVR_SPECIAL:
-            sim65_dprintf(s, "SCREN cmd SPECIAL");
+            sim65_dprintf(s, "SCREEN: special (%s) @(%d, %d) color: %d  fcolor:%d",
+                          cmd == 17 ? "drawto" : cmd == 18 ? "fillto" : "unknown",
+                          x, y, peek(s, ATACHR), peek(s, FILDAT));
+            if (cmd == 17)
+                regs->y = sys_screen(scr_cmd_drawto, x, y, peek(s, ATACHR));
+            else if (cmd == 18)
+                regs->y = sys_screen(scr_cmd_fillto, x, y, peek(s, ATACHR) | (peek(s, FILDAT)<<8) );
             return 0;
         case DEVR_INIT:
             return 0;
