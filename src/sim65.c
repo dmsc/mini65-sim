@@ -50,6 +50,7 @@ struct sim65s
     enum sim65_error_lvl errlvl;
     unsigned err_addr;
     unsigned cycles;
+    unsigned do_prof;
     struct sim65_reg r;
     uint8_t p_valid;
     uint8_t mem[MAXRAM];
@@ -57,6 +58,7 @@ struct sim65s
     sim65_callback cb_read[MAXRAM];
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
+    unsigned prof[MAXRAM];
     char *labels;
 };
 
@@ -560,7 +562,7 @@ static void do_rti(sim65 s)
 
 static void next(sim65 s)
 {
-    unsigned ins, data, val;
+    unsigned ins, data, val, old_pc = 0, old_cycles = 0;
 
     // See if out vector
     if (s->cb_exec[s->r.pc])
@@ -581,6 +583,12 @@ static void next(sim65 s)
     if (ilen[ins] > 2)
         data |= readPc(s, 2) << 8;
 
+    // If profiling, store old info
+    if (s->do_prof)
+    {
+        old_pc = s->r.pc;
+        old_cycles = s->cycles;
+    }
     // Update PC
     s->r.pc += ilen[ins];
 
@@ -739,6 +747,9 @@ static void next(sim65 s)
         case 0xfe:  ABX_RW(INC);            break;
         default:    set_error(s, sim65_err_invalid_ins, s->r.pc - 1);
     }
+    // Update profile information
+    if (s->do_prof)
+        s->prof[old_pc & 0xFFFF] += s->cycles -old_cycles;
 }
 
 enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
@@ -924,7 +935,7 @@ static char *print_zp_label(sim65 s, char *buf, uint16_t addr, char idx)
     return buf;
 }
 
-static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx)
+static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx, int hint)
 {
     char *l = get_label(s, addr);
     *buf++ = '(';
@@ -950,17 +961,20 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx)
     if (idx != 'Y')
         *buf++ = ')';
 
-    *buf++ = ' ';
-    *buf++ = '[';
-    *buf++ = '$';
+    if (hint)
+    {
+        *buf++ = ' ';
+        *buf++ = '[';
+        *buf++ = '$';
 
-    if (idx == 'X')
-        buf = hex4(buf, readWord(s, 0xFF & (addr + s->r.x)));
-    else if (idx == 'Y')
-        buf = hex4(buf, readWord(s, addr) + s->r.y);
-    else
-        buf = hex4(buf, readWord(s, addr));
-    *buf++ = ']';
+        if (idx == 'X')
+            buf = hex4(buf, readWord(s, 0xFF & (addr + s->r.x)));
+        else if (idx == 'Y')
+            buf = hex4(buf, readWord(s, addr) + s->r.y);
+        else
+            buf = hex4(buf, readWord(s, addr));
+        *buf++ = ']';
+    }
 
     return buf;
 }
@@ -975,12 +989,12 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx)
 #define PLZP(val)  buf = print_zp_label(s, buf, val, 0)
 #define PLZPX(val) buf = print_zp_label(s, buf, val, 'X')
 #define PLZPY(val) buf = print_zp_label(s, buf, val, 'Y')
-#define PLIDX(val) buf = print_ind_label(s, buf, val, 'X')
-#define PLIDY(val) buf = print_ind_label(s, buf, val, 'Y')
-#define PLIND(val) buf = print_ind_label(s, buf, val, 0)
+#define PLIDX(val) buf = print_ind_label(s, buf, val, 'X', hint)
+#define PLIDY(val) buf = print_ind_label(s, buf, val, 'Y', hint)
+#define PLIND(val) buf = print_ind_label(s, buf, val, 0, hint)
 
 #define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
-#define INSPRT_BRA(name) PNAM(name); PLAB(s->r.pc + 2 + (signed char)data)
+#define INSPRT_BRA(name) PNAM(name); PLAB(pc + 2 + (signed char)data)
 #define INSPRT_ABS(name) PNAM(name); PLAB(data)
 #define INSPRT_ABX(name) PNAM(name); PLABX(data)
 #define INSPRT_ABY(name) PNAM(name); PLABY(data)
@@ -993,14 +1007,30 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx)
 #define INSPRT_IMP(name) PNAM(name)
 #define INSPRT_ACC(name) PNAM(name); PSTR("A")
 
-static void print_curr_ins(char *buf, sim65 s)
+static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
 {
     unsigned ins = 0, data = 0, c = 0;
-    ins = s->mem[(s->r.pc) & 0xFFFF];
+    ins = s->mem[pc & 0xFFFF];
     if (ilen[ins] == 2)
-        data = s->mem[(1 + s->r.pc) & 0xFFFF];
+        data = s->mem[(1 + pc) & 0xFFFF];
     else if (ilen[ins] == 3)
-        data = s->mem[(1 + s->r.pc) & 0xFFFF] + (s->mem[(2 + s->r.pc) & 0xFFFF] << 8);
+        data = s->mem[(1 + pc) & 0xFFFF] + (s->mem[(2 + pc) & 0xFFFF] << 8);
+
+    if (s->labels)
+    {
+        char *ebuf = buf + 19;
+        char *l = get_label(s, pc);
+        buf = print_lbl_max(buf, l, 16);
+        if( *l )
+            *buf++ = ':';
+        while (buf < ebuf)
+            *buf++ = ' ';
+    }
+    else
+    {
+        *buf++ = ':';
+        *buf++ = ' ';
+    }
 
     int ln = 21;
     if (s->labels)
@@ -1008,9 +1038,8 @@ static void print_curr_ins(char *buf, sim65 s)
     memset(buf, ' ', ln + 9);
     buf[ln] = ';';
     c = ilen[ins];
-    print_mem_count(buf + ln + 2, s, s->r.pc, c);
-    buf[ln + 2 + c * 4] = '\n';
-    buf[ln + 3 + c * 4] = 0;
+    print_mem_count(buf + ln + 2, s, pc, c);
+    buf[ln + 2 + c * 4] = 0;
 
     switch (ins)
     {
@@ -1273,7 +1302,7 @@ static void print_curr_ins(char *buf, sim65 s)
     }
 }
 
-void sim65_print_reg(sim65 s)
+void sim65_print_reg(const sim65 s)
 {
     char buffer[256];
     char *buf = buffer;
@@ -1290,23 +1319,16 @@ void sim65_print_reg(sim65 s)
     PHX2(s->r.s);
     PSTR(" PC=");
     PHX4(s->r.pc);
-    if (s->labels)
-    {
-        char *ebuf = buf + 19;
-        *buf++ = ' ';
-        char *l = get_label(s, s->r.pc);
-        buf = print_lbl_max(buf, l, 16);
-        if( *l )
-            *buf++ = ':';
-        while (buf < ebuf)
-            *buf++ = ' ';
-    }
-    else
-    {
-        PSTR(" : ");
-    }
-    print_curr_ins(buf, s);
+    *buf++ = ' ';
+    print_curr_ins(s, s->r.pc, buf, 1);
     fputs(buffer, stderr);
+    putc('\n', stderr);
+}
+
+char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr)
+{
+    print_curr_ins(s, addr, buf, 0);
+    return buf;
 }
 
 int sim65_dprintf(sim65 s, const char *format, ...)
@@ -1412,4 +1434,19 @@ int sim65_lbl_load(sim65 s, const char *lblname)
 unsigned long sim65_get_cycles(const sim65 s)
 {
     return s->cycles;
+}
+
+const unsigned *sim65_get_profile_info(const sim65 s)
+{
+    return s->prof;
+}
+
+void sim65_set_profiling(const sim65 s, int set)
+{
+    s->do_prof = set;
+}
+
+const char *sim65_get_label(const sim65 s, uint16_t addr)
+{
+    return get_label(s, addr);
 }

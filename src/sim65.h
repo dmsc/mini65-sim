@@ -152,3 +152,17 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl);
 /// Returns number of cycles executed
 unsigned long sim65_get_cycles(const sim65 s);
 
+/// Activate instruction profiling.
+void sim65_set_profiling(sim65 s, int set);
+
+/// Get's profiling information.
+/// @returns a pointer to an array of 65536 counts, one for each memory
+///          location.
+const unsigned *sim65_get_profile_info(const sim65 s);
+
+/// Returns name of label in given location, or null pointer if not found
+const char *sim65_get_label(const sim65 s, uint16_t addr);
+
+/// Disassembles the givenn address to the buffer, length should be > 128.
+/// @returns the same buffer passed.
+char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr);

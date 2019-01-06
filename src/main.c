@@ -34,7 +34,8 @@ static void print_help(void)
                     " -t: Print simulation trace\n"
                     " -e <lvl>: Sets the error level to 'none', 'mem' or 'full'\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
-                    " -r <addr>: Loads rom at give address instead of XEX file\n",
+                    " -r <addr>: Loads rom at give address instead of XEX file\n"
+                    " -p <file>: Store profile information into file\n",
             prog_name);
 }
 
@@ -52,19 +53,35 @@ static void exit_error(const char *text)
     exit(1);
 }
 
+static void store_prof(const char *fname, sim65 s)
+{
+    FILE *f = fopen(fname, "w");
+    if (!f)
+    {
+        perror(fname);
+        exit_error("can't open profile.");
+    }
+    const unsigned *data = sim65_get_profile_info(s);
+    char buf[256];
+    for (unsigned i=0; i<65536; i++)
+        if (data[i])
+            fprintf(f, "%9d %04X %s\n", data[i], i, sim65_disassemble(s, buf, i));
+    fclose(f);
+}
+
 int main(int argc, char **argv)
 {
     sim65 s;
     int opt;
     unsigned rom = 0;
-    const char *lblname = 0;
+    const char *lblname = 0, *profname = 0;
 
     prog_name = argv[0];
     s = sim65_new();
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "tdhr:l:e:")) != -1)
+    while ((opt = getopt(argc, argv, "tdhr:l:e:p:")) != -1)
     {
         switch (opt)
         {
@@ -92,6 +109,9 @@ int main(int argc, char **argv)
                 break;
             case 'l': // label file
                 lblname = optarg;
+                break;
+            case 'p': // profile
+                profname = optarg;
                 break;
             default:
                 print_error(0);
@@ -135,5 +155,7 @@ int main(int argc, char **argv)
         sim65_eprintf(s, "simulator returned %s at address %04x.",
                       sim65_error_str(s, e), sim65_error_addr(s));
     sim65_dprintf(s, "Total cycles: %ld", sim65_get_cycles(s));
+    if (profname)
+        store_prof(profname, s);
     return 0;
 }
