@@ -611,7 +611,6 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // We need IOCB data
-    unsigned chn  = (regs->x >> 4);
     unsigned cmd  = GET_IC(COM);
     unsigned ax1  = GET_IC(AX1);
     unsigned ax2  = GET_IC(AX2);
