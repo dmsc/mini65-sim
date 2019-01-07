@@ -498,6 +498,7 @@ static void do_sbc(sim65 s, unsigned val)
 #define IMP_A(op)   s->cycles += 2; val = s->r.a; op; s->r.a = val; SET_ZN
 #define IMP_Y(op)   s->cycles += 2; val = s->r.y; op; s->r.y = val; SET_ZN
 #define IMP_X(op)   s->cycles += 2; val = s->r.x; op; s->r.x = val; SET_ZN
+#define TXS(op)     s->cycles += 2; s->r.s = s->r.x;
 
 #define BRA_0(a)   s->cycles += 2; if (!get_flags(s, a)) BRA
 #define BRA_1(a)   s->cycles += 2; if (get_flags(s, a)) BRA
@@ -682,7 +683,7 @@ static void next(sim65 s)
         case 0x96:  ZPY_W(STX);             break;
         case 0x98:  IMP_Y(LDA);             break; // TYA
         case 0x99:  ABY_W(STA);             break;
-        case 0x9a:  IMP_X(s->r.s = val);    break; // TXS
+        case 0x9a:  TXS();                  break; // TXS
         case 0x9d:  ABX_W(STA);             break;
         case 0xa0:  IMM(LDY);               break;
         case 0xa1:  IND_X(LDA);             break;
