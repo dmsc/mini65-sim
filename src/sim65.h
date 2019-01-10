@@ -55,6 +55,14 @@ enum sim65_error_lvl {
     sim65_errlvl_default = sim65_errlvl_memory
 };
 
+/// Structure with profile information
+struct sim65_profile {
+    /// Array with count of executed instructions at each address, from 0 to 65535.
+    const unsigned *exe_count;
+    /// Array with count of taken branches from each address, from 0 to 65535.
+    const unsigned *branch_taken;
+};
+
 /// Creates new simulator state, with no address regions defined.
 sim65 sim65_new();
 /// Adds an uninitialized RAM region.
@@ -156,9 +164,8 @@ unsigned long sim65_get_cycles(const sim65 s);
 void sim65_set_profiling(sim65 s, int set);
 
 /// Get's profiling information.
-/// @returns a pointer to an array of 65536 counts, one for each memory
-///          location.
-const unsigned *sim65_get_profile_info(const sim65 s);
+/// @returns a sim65_profile struct with the profile data.
+struct sim65_profile sim65_get_profile_info(const sim65 s);
 
 /// Returns name of label in given location, or null pointer if not found
 const char *sim65_get_label(const sim65 s, uint16_t addr);

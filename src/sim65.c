@@ -59,6 +59,7 @@ struct sim65s
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
     unsigned prof[MAXRAM];
+    unsigned prof_branch[MAXRAM];  // Number of taken branches
     char *labels;
 };
 
@@ -431,8 +432,10 @@ static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
     s->cycles += 2;
     if (!get_flags(s, mask) == !cond)
     {
-        uint16_t val = (s->r.pc + off) & 0xFFFF;
         s->cycles++;
+        if (s->do_prof)
+            s->prof_branch[(s->r.pc-2) & 0xFFFF] ++;
+        uint16_t val = (s->r.pc + off) & 0xFFFF;
         if ((val & 0xFF00) != (s->r.pc & 0xFF00))
             s->cycles++;
         s->r.pc = val;
@@ -1006,9 +1009,10 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx, int hi
 #define PLIDX(val) buf = print_ind_label(s, buf, val, 'X', hint)
 #define PLIDY(val) buf = print_ind_label(s, buf, val, 'Y', hint)
 #define PLIND(val) buf = print_ind_label(s, buf, val, 0, hint)
+#define PBRA_X(p,o) buf[-1] = ((((p)+(int8_t)(o))^(p))&0xFF00) ? '*' : buf[-1]
 
 #define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
-#define INSPRT_BRA(name) PNAM(name); PLAB(pc + 2 + (signed char)data)
+#define INSPRT_BRA(name) PNAM(name); PBRA_X(pc + 2, data); PLAB(pc + 2 + (signed char)data);
 #define INSPRT_ABS(name) PNAM(name); PLAB(data)
 #define INSPRT_ABX(name) PNAM(name); PLABX(data)
 #define INSPRT_ABY(name) PNAM(name); PLABY(data)
@@ -1450,9 +1454,12 @@ unsigned long sim65_get_cycles(const sim65 s)
     return s->cycles;
 }
 
-const unsigned *sim65_get_profile_info(const sim65 s)
+struct sim65_profile sim65_get_profile_info(const sim65 s)
 {
-    return s->prof;
+    struct sim65_profile r;
+    r.exe_count = s->prof;
+    r.branch_taken = s->prof_branch;
+    return r;
 }
 
 void sim65_set_profiling(const sim65 s, int set)

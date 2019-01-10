@@ -61,11 +61,17 @@ static void store_prof(const char *fname, sim65 s)
         perror(fname);
         exit_error("can't open profile.");
     }
-    const unsigned *data = sim65_get_profile_info(s);
+    struct sim65_profile pdata = sim65_get_profile_info(s);
     char buf[256];
     for (unsigned i=0; i<65536; i++)
-        if (data[i])
-            fprintf(f, "%9d %04X %s\n", data[i], i, sim65_disassemble(s, buf, i));
+        if (pdata.exe_count[i])
+        {
+            fprintf(f, "%9d %04X %s", pdata.exe_count[i], i, sim65_disassemble(s, buf, i));
+            if (pdata.branch_taken[i])
+                fprintf(f, " (%d times taken)", pdata.branch_taken[i]);
+            fputc('\n', f);
+        }
+
     fclose(f);
 }
 
