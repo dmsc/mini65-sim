@@ -425,6 +425,20 @@ static void do_sbc(sim65 s, unsigned val)
     }
 }
 
+// Implements branch instructions
+static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
+{
+    s->cycles += 2;
+    if (!get_flags(s, mask) == !cond)
+    {
+        uint16_t val = (s->r.pc + off) & 0xFFFF;
+        s->cycles++;
+        if ((val & 0xFF00) != (s->r.pc & 0xFF00))
+            s->cycles++;
+        s->r.pc = val;
+    }
+}
+
 #define ZP_R1   val = readByte(s, data & 0xFF)
 #define ZP_W1   writeByte(s, data & 0xFF, val)
 #define ZPX_R1  val = readByte(s, (data + s->r.x) & 0xFF)
@@ -465,7 +479,6 @@ static void do_sbc(sim65 s, unsigned val)
 #define STA val = s->r.a
 #define STX val = s->r.x
 #define STY val = s->r.y
-#define BRA { s->cycles++; val = ((data & 0x80) ? s->r.pc + data - 0x100 : s->r.pc + data) & 0xFFFF; if ((val & 0xFF00) != (s->r.pc & 0xFF00)) s->cycles++; s->r.pc = val; }
 #define PUSH(val) s->cycles += 3; writeByte(s, 0x100 + s->r.s,val); s->r.s = (s->r.s - 1) & 0xFF
 #define POP  s->r.s = (s->r.s + 1) & 0xFF; val = readByte(s, 0x100 + s->r.s)
 
@@ -500,8 +513,8 @@ static void do_sbc(sim65 s, unsigned val)
 #define IMP_X(op)   s->cycles += 2; val = s->r.x; op; s->r.x = val; SET_ZN
 #define TXS(op)     s->cycles += 2; s->r.s = s->r.x;
 
-#define BRA_0(a)   s->cycles += 2; if (!get_flags(s, a)) BRA
-#define BRA_1(a)   s->cycles += 2; if (get_flags(s, a)) BRA
+#define BRA_0(a)    do_branch(s, data, a, 0)
+#define BRA_1(a)    do_branch(s, data, a, 1)
 #define JMP()      s->cycles += 3; s->r.pc = data
 #define JMP16()    s->cycles += 5; s->r.pc = readWord(s, data)
 #define JSR()      do_jsr(s, data)
