@@ -177,5 +177,6 @@ int main(int argc, char **argv)
     sim65_dprintf(s, "Total cycles: %ld", sim65_get_cycles(s));
     if (profname)
         store_prof(profname, s);
+    free(s);
     return 0;
 }

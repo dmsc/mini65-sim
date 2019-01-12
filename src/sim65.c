@@ -1052,18 +1052,21 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx, int hi
 #define PLIDX(val) buf = print_ind_label(s, buf, val, 'X', hint)
 #define PLIDY(val) buf = print_ind_label(s, buf, val, 'Y', hint)
 #define PLIND(val) buf = print_ind_label(s, buf, val, 0, hint)
-#define PBRA_X(p,o) buf[-1] = ((((p)+(int8_t)(o))^(p))&0xFF00) ? '*' : buf[-1]
+#define PXTRA(b,r,h) if (h) buf[18] = ((((b)+(r))^(b))&0xFF00) ? '*' : buf[18]
 
 #define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
-#define INSPRT_BRA(name) PNAM(name); PBRA_X(pc + 2, data); PLAB(pc + 2 + (signed char)data);
+#define INSPRT_BRA(name) PNAM(name); PXTRA(pc+2, (int8_t)(data), 1); PLAB(pc+2+(int8_t)data)
 #define INSPRT_ABS(name) PNAM(name); PLAB(data)
-#define INSPRT_ABX(name) PNAM(name); PLABX(data)
-#define INSPRT_ABY(name) PNAM(name); PLABY(data)
+#define INSPRT_ABXW(name) PNAM(name); PLABX(data)
+#define INSPRT_ABYW(name) PNAM(name); PLABY(data)
+#define INSPRT_ABX(name) PNAM(name); PXTRA(data,s->r.x, hint); PLABX(data)
+#define INSPRT_ABY(name) PNAM(name); PXTRA(data,s->r.y, hint); PLABY(data)
 #define INSPRT_ZPG(name) PNAM(name); PLZP(data)
 #define INSPRT_ZPX(name) PNAM(name); PLZPX(data)
 #define INSPRT_ZPY(name) PNAM(name); PLZPY(data)
 #define INSPRT_IDX(name) PNAM(name); PLIDX(data)
-#define INSPRT_IDY(name) PNAM(name); PLIDY(data)
+#define INSPRT_IDY(name) PNAM(name); PXTRA(readWord(s, data),s->r.y, hint); PLIDY(data)
+#define INSPRT_IDYW(name) PNAM(name); PLIDY(data)
 #define INSPRT_IND(name) PNAM(name); PLIND(data)
 #define INSPRT_IMP(name) PNAM(name)
 #define INSPRT_ACC(name) PNAM(name); PSTR("A")
@@ -1107,7 +1110,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x00: INSPRT_IMP("BRK"); break;
         case 0x01: INSPRT_IDX("ORA"); break;
         case 0x02: INSPRT_IMP("kil"); break;
-        case 0x03: INSPRT_IDY("slo"); break;
+        case 0x03: INSPRT_IDYW("slo"); break;
         case 0x04: INSPRT_ZPG("dop"); break;
         case 0x05: INSPRT_ZPG("ORA"); break;
         case 0x06: INSPRT_ZPG("ASL"); break;
@@ -1134,8 +1137,8 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x1B: INSPRT_ABY("slo"); break;
         case 0x1C: INSPRT_ABX("top"); break;
         case 0x1D: INSPRT_ABX("ORA"); break;
-        case 0x1E: INSPRT_ABX("ASL"); break;
-        case 0x1F: INSPRT_ABX("slo"); break;
+        case 0x1E: INSPRT_ABXW("ASL"); break;
+        case 0x1F: INSPRT_ABXW("slo"); break;
         case 0x20: INSPRT_ABS("JSR"); break;
         case 0x21: INSPRT_IDX("AND"); break;
         case 0x22: INSPRT_IMP("kil"); break;
@@ -1155,7 +1158,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x30: INSPRT_BRA("BMI"); break;
         case 0x31: INSPRT_IDY("AND"); break;
         case 0x32: INSPRT_IMP("kil"); break;
-        case 0x33: INSPRT_IDY("rla"); break;
+        case 0x33: INSPRT_IDYW("rla"); break;
         case 0x34: INSPRT_ZPX("dop"); break;
         case 0x35: INSPRT_ZPX("AND"); break;
         case 0x36: INSPRT_ZPX("ROL"); break;
@@ -1163,11 +1166,11 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x38: INSPRT_IMP("SEC"); break;
         case 0x39: INSPRT_ABY("AND"); break;
         case 0x3A: INSPRT_IMP("nop"); break;
-        case 0x3B: INSPRT_ABY("rla"); break;
+        case 0x3B: INSPRT_ABYW("rla"); break;
         case 0x3C: INSPRT_ABX("top"); break;
         case 0x3D: INSPRT_ABX("AND"); break;
-        case 0x3E: INSPRT_ABX("ROL"); break;
-        case 0x3F: INSPRT_ABX("rla"); break;
+        case 0x3E: INSPRT_ABXW("ROL"); break;
+        case 0x3F: INSPRT_ABXW("rla"); break;
         case 0x40: INSPRT_IMP("RTI"); break;
         case 0x41: INSPRT_IDX("EOR"); break;
         case 0x42: INSPRT_IMP("kil"); break;
@@ -1187,7 +1190,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x50: INSPRT_BRA("BVC"); break;
         case 0x51: INSPRT_IDY("EOR"); break;
         case 0x52: INSPRT_IMP("kil"); break;
-        case 0x53: INSPRT_IDY("sre"); break;
+        case 0x53: INSPRT_IDYW("sre"); break;
         case 0x54: INSPRT_ZPX("dop"); break;
         case 0x55: INSPRT_ZPX("EOR"); break;
         case 0x56: INSPRT_ZPX("LSR"); break;
@@ -1195,11 +1198,11 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x58: INSPRT_IMP("CLI"); break;
         case 0x59: INSPRT_ABY("EOR"); break;
         case 0x5A: INSPRT_IMP("nop"); break;
-        case 0x5B: INSPRT_ABY("sre"); break;
+        case 0x5B: INSPRT_ABYW("sre"); break;
         case 0x5C: INSPRT_ABX("top"); break;
         case 0x5D: INSPRT_ABX("EOR"); break;
-        case 0x5E: INSPRT_ABX("LSR"); break;
-        case 0x5F: INSPRT_ABX("sre"); break;
+        case 0x5E: INSPRT_ABXW("LSR"); break;
+        case 0x5F: INSPRT_ABXW("sre"); break;
         case 0x60: INSPRT_IMP("RTS"); break;
         case 0x61: INSPRT_IDX("ADC"); break;
         case 0x62: INSPRT_IMP("kil"); break;
@@ -1219,7 +1222,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x70: INSPRT_BRA("BVS"); break;
         case 0x71: INSPRT_IDY("ADC"); break;
         case 0x72: INSPRT_IMP("kil"); break;
-        case 0x73: INSPRT_IDY("rra"); break;
+        case 0x73: INSPRT_IDYW("rra"); break;
         case 0x74: INSPRT_ZPX("dop"); break;
         case 0x75: INSPRT_ZPX("ADC"); break;
         case 0x76: INSPRT_ZPX("ROR"); break;
@@ -1227,11 +1230,11 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x78: INSPRT_IMP("SEI"); break;
         case 0x79: INSPRT_ABY("ADC"); break;
         case 0x7A: INSPRT_IMP("nop"); break;
-        case 0x7B: INSPRT_ABY("rra"); break;
+        case 0x7B: INSPRT_ABYW("rra"); break;
         case 0x7C: INSPRT_ABX("top"); break;
         case 0x7D: INSPRT_ABX("ADC"); break;
-        case 0x7E: INSPRT_ABX("ROR"); break;
-        case 0x7F: INSPRT_ABX("rra"); break;
+        case 0x7E: INSPRT_ABXW("ROR"); break;
+        case 0x7F: INSPRT_ABXW("rra"); break;
         case 0x80: INSPRT_IMM("dop"); break;
         case 0x81: INSPRT_IDX("STA"); break;
         case 0x82: INSPRT_IMM("dop"); break;
@@ -1249,21 +1252,21 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0x8E: INSPRT_ABS("STX"); break;
         case 0x8F: INSPRT_ABS("aax"); break;
         case 0x90: INSPRT_BRA("BCC"); break;
-        case 0x91: INSPRT_IDY("STA"); break;
+        case 0x91: INSPRT_IDYW("STA"); break;
         case 0x92: INSPRT_IMP("kil"); break;
-        case 0x93: INSPRT_IDY("axa"); break;
+        case 0x93: INSPRT_IDYW("axa"); break;
         case 0x94: INSPRT_ZPX("STY"); break;
         case 0x95: INSPRT_ZPX("STA"); break;
         case 0x96: INSPRT_ZPY("STX"); break;
         case 0x97: INSPRT_ZPX("aax"); break;
         case 0x98: INSPRT_IMP("TYA"); break;
-        case 0x99: INSPRT_ABY("STA"); break;
+        case 0x99: INSPRT_ABYW("STA"); break;
         case 0x9A: INSPRT_IMP("TXS"); break;
-        case 0x9B: INSPRT_ABY("xas"); break;
-        case 0x9C: INSPRT_ABX("sya"); break;
-        case 0x9D: INSPRT_ABX("STA"); break;
-        case 0x9E: INSPRT_ABY("sxa"); break;
-        case 0x9F: INSPRT_ABY("axa"); break;
+        case 0x9B: INSPRT_ABYW("xas"); break;
+        case 0x9C: INSPRT_ABXW("sya"); break;
+        case 0x9D: INSPRT_ABXW("STA"); break;
+        case 0x9E: INSPRT_ABYW("sxa"); break;
+        case 0x9F: INSPRT_ABYW("axa"); break;
         case 0xA0: INSPRT_IMM("LDY"); break;
         case 0xA1: INSPRT_IDX("LDA"); break;
         case 0xA2: INSPRT_IMM("LDX"); break;
@@ -1315,7 +1318,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0xD0: INSPRT_BRA("BNE"); break;
         case 0xD1: INSPRT_IDY("CMP"); break;
         case 0xD2: INSPRT_IMP("kil"); break;
-        case 0xD3: INSPRT_IDY("dcp"); break;
+        case 0xD3: INSPRT_IDYW("dcp"); break;
         case 0xD4: INSPRT_ZPX("dop"); break;
         case 0xD5: INSPRT_ZPX("CMP"); break;
         case 0xD6: INSPRT_ZPX("DEC"); break;
@@ -1323,11 +1326,11 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0xD8: INSPRT_IMP("CLD"); break;
         case 0xD9: INSPRT_ABY("CMP"); break;
         case 0xDA: INSPRT_IMP("nop"); break;
-        case 0xDB: INSPRT_ABY("dcp"); break;
+        case 0xDB: INSPRT_ABYW("dcp"); break;
         case 0xDC: INSPRT_ABX("top"); break;
         case 0xDD: INSPRT_ABX("CMP"); break;
-        case 0xDE: INSPRT_ABX("DEC"); break;
-        case 0xDF: INSPRT_ABX("dcp"); break;
+        case 0xDE: INSPRT_ABXW("DEC"); break;
+        case 0xDF: INSPRT_ABXW("dcp"); break;
         case 0xE0: INSPRT_IMM("CPX"); break;
         case 0xE1: INSPRT_IDX("SBC"); break;
         case 0xE2: INSPRT_IMM("dop"); break;
@@ -1347,7 +1350,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0xF0: INSPRT_BRA("BEQ"); break;
         case 0xF1: INSPRT_IDY("SBC"); break;
         case 0xF2: INSPRT_IMP("kil"); break;
-        case 0xF3: INSPRT_IDY("isc"); break;
+        case 0xF3: INSPRT_IDYW("isc"); break;
         case 0xF4: INSPRT_ZPX("dop"); break;
         case 0xF5: INSPRT_ZPX("SBC"); break;
         case 0xF6: INSPRT_ZPX("INC"); break;
@@ -1355,11 +1358,11 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         case 0xF8: INSPRT_IMP("SED"); break;
         case 0xF9: INSPRT_ABY("SBC"); break;
         case 0xFA: INSPRT_IMP("nop"); break;
-        case 0xFB: INSPRT_ABY("isc"); break;
+        case 0xFB: INSPRT_ABYW("isc"); break;
         case 0xFC: INSPRT_ABX("top"); break;
         case 0xFD: INSPRT_ABX("SBC"); break;
-        case 0xFE: INSPRT_ABX("INC"); break;
-        case 0xFF: INSPRT_ABX("isc"); break;
+        case 0xFE: INSPRT_ABXW("INC"); break;
+        case 0xFF: INSPRT_ABXW("isc"); break;
     }
 }
 
