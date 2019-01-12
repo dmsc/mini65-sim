@@ -58,8 +58,17 @@ struct sim65s
     sim65_callback cb_read[MAXRAM];
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
-    unsigned prof[MAXRAM];
-    unsigned prof_branch[MAXRAM];  // Number of taken branches
+    struct {
+        unsigned exe[MAXRAM];   // Times this instruction was executed
+        unsigned branch[MAXRAM];// Times this branch was taken
+        unsigned branch_skip;   // Number of branches skipped
+        unsigned branch_taken;  // Number of branches taken
+        unsigned branch_extra;  // Extra cycles per branch to other page
+        unsigned abs_x_extra;   // Extra cycles per ABS,X crossing page
+        unsigned abs_y_extra;   // Extra cycles per ABS,Y crossing page
+        unsigned ind_y_extra;   // Extra cycles per (),Y crossing page
+        unsigned instructions;  // Number of instructions
+    } prof;
     char *labels;
 };
 
@@ -319,7 +328,11 @@ static int readIndY(sim65 s, unsigned addr)
     s->cycles += 5;
     addr = readWord(s, addr & 0xFF);
     if (unlikely(((addr & 0xFF) + s->r.y) > 0xFF))
+    {
         s->cycles++;
+        if (s->do_prof)
+            s->prof.ind_y_extra ++;
+    }
     return readByte(s, 0xFFFF & (addr + s->r.y));
 }
 
@@ -434,11 +447,40 @@ static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
     {
         s->cycles++;
         if (s->do_prof)
-            s->prof_branch[(s->r.pc-2) & 0xFFFF] ++;
+        {
+            s->prof.branch[(s->r.pc-2) & 0xFFFF] ++;
+            s->prof.branch_taken ++;
+        }
         uint16_t val = (s->r.pc + off) & 0xFFFF;
         if ((val & 0xFF00) != (s->r.pc & 0xFF00))
+        {
             s->cycles++;
+            if (s->do_prof)
+                s->prof.branch_extra ++;
+        }
         s->r.pc = val;
+    }
+    else if (s->do_prof)
+        s->prof.branch_skip ++;
+}
+
+static void do_extra_absx(sim65 s, unsigned addr)
+{
+    if (((addr & 0xFF) + s->r.x) > 0xFF)
+    {
+        s->cycles++;
+        if (s->do_prof)
+            s->prof.abs_x_extra ++;
+    }
+}
+
+static void do_extra_absy(sim65 s, unsigned addr)
+{
+    if (((addr & 0xFF) + s->r.y) > 0xFF)
+    {
+        s->cycles++;
+        if (s->do_prof)
+            s->prof.abs_y_extra ++;
     }
 }
 
@@ -501,13 +543,11 @@ static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
 #define ZPY_R(op)   s->cycles += 4; ZPY_R1; op
 #define ZPY_W(op)   s->cycles += 4; op; ZPY_W1
 
-#define CC_X        if (((data & 0xFF) + s->r.x) > 0xFF) s->cycles++;
-#define ABX_R(op)   s->cycles += 4; CC_X; ABX_R1; op
+#define ABX_R(op)   s->cycles += 4; do_extra_absx(s, data); ABX_R1; op
 #define ABX_W(op)   s->cycles += 5; op; ABX_W1
 #define ABX_RW(op)  s->cycles += 7; ABX_R1; op; ABX_W1
 
-#define CC_Y        if (((data & 0xFF) + s->r.y) > 0xFF) s->cycles++;
-#define ABY_R(op)   s->cycles += 4; CC_Y; ABY_R1; op
+#define ABY_R(op)   s->cycles += 4; do_extra_absy(s, data); ABY_R1; op
 #define ABY_W(op)   s->cycles += 5; op; ABY_W1
 
 #define IMM(op)     s->cycles += 2; val = data; op
@@ -766,7 +806,10 @@ static void next(sim65 s)
     }
     // Update profile information
     if (s->do_prof)
-        s->prof[old_pc & 0xFFFF] += s->cycles -old_cycles;
+    {
+        s->prof.instructions ++;
+        s->prof.exe[old_pc & 0xFFFF] += s->cycles -old_cycles;
+    }
 }
 
 enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
@@ -1457,8 +1500,16 @@ unsigned long sim65_get_cycles(const sim65 s)
 struct sim65_profile sim65_get_profile_info(const sim65 s)
 {
     struct sim65_profile r;
-    r.exe_count = s->prof;
-    r.branch_taken = s->prof_branch;
+    r.exe_count = s->prof.exe;
+    r.branch_taken = s->prof.branch;
+    r.total.branch_skip = s->prof.branch_skip;
+    r.total.branch_taken = s->prof.branch_taken;
+    r.total.branch_extra = s->prof.branch_extra;
+    r.total.instructions = s->prof.instructions;
+    r.total.cycles = s->cycles;
+    r.total.extra_abs_x = s->prof.abs_x_extra;
+    r.total.extra_abs_y = s->prof.abs_y_extra;
+    r.total.extra_ind_y = s->prof.ind_y_extra;
     return r;
 }
 

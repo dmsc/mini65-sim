@@ -71,6 +71,20 @@ static void store_prof(const char *fname, sim65 s)
                 fprintf(f, " (%d times taken)", pdata.branch_taken[i]);
             fputc('\n', f);
         }
+    // Summary at end
+    unsigned ti  = pdata.total.instructions;
+    unsigned tb  = pdata.total.branch_skip + pdata.total.branch_taken;
+    fprintf(f, "--------- Total Instructions:    %9d\n"
+               "--------- Total Branches:        %9d (%.1f%% of instructions)\n"
+               "--------- Total Branches Taken:  %9d (%.1f%% of branches)\n"
+               "--------- Branches cross-page:   %9d (%.1f%% of taken branches)\n"
+               "--------- Absolute X cross-page: %9d\n"
+               "--------- Absolute Y cross-page: %9d\n"
+               "--------- Indirect Y cross-page: %9d\n",
+               ti, tb, 100.0 * tb / ti,
+               pdata.total.branch_taken, 100.0 * pdata.total.branch_taken / tb,
+               pdata.total.branch_extra, 100.0 * pdata.total.branch_extra / pdata.total.branch_taken,
+               pdata.total.extra_abs_x, pdata.total.extra_abs_y, pdata.total.extra_ind_y );
 
     fclose(f);
 }
