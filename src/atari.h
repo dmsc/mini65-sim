@@ -1,6 +1,6 @@
 /*
  * Mini65 - Small 6502 simulator with Atari 8bit bios.
- * Copyright (C) 2017,2018 Daniel Serpell
+ * Copyright (C) 2017-2019 Daniel Serpell
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
