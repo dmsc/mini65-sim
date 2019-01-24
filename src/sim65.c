@@ -608,13 +608,13 @@ static void do_rts(sim65 s)
 static void do_rti(sim65 s)
 {
     unsigned val;
-    POP_P;
+    POP_P; // NOTE: already adds 4 cycles
     POP;
     s->r.pc = val;
     POP;
     s->r.pc |= val << 8;
     s->r.pc = (s->r.pc) & 0xFFFF;
-    s->cycles += 6;
+    s->cycles += 2;
 }
 
 static void next(sim65 s)
