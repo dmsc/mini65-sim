@@ -126,7 +126,8 @@ static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 static uint8_t get_flags(sim65 s, uint8_t mask)
 {
     if( 0 != (s->p_valid & mask) )
-        sim65_eprintf(s, "using uninitialized flags at PC=$%4X", s->r.pc);
+        sim65_eprintf(s, "using uninitialized flags ($%02X) at PC=$%4X",
+                      s->p_valid & mask, s->r.pc);
     return s->r.p & mask;
 }
 
