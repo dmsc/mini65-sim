@@ -84,6 +84,8 @@ struct sim65_profile {
 
 /// Creates new simulator state, with no address regions defined.
 sim65 sim65_new();
+/// Deletes simulator state, freeing all memory.
+void sim65_free(sim65 s);
 /// Adds an uninitialized RAM region.
 void sim65_add_ram(sim65 s, unsigned addr, unsigned len);
 /// Adds a zeroed RAM region.

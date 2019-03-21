@@ -148,6 +148,12 @@ sim65 sim65_new()
     return s;
 }
 
+void sim65_free(sim65 s)
+{
+    free(s->labels);
+    free(s);
+}
+
 void sim65_add_ram(sim65 s, unsigned addr, unsigned len)
 {
     unsigned end = addr + len;
@@ -1500,6 +1506,7 @@ int sim65_lbl_load(sim65 s, const char *lblname)
             break;
         else if (e != 2)
         {
+            fclose(f);
             sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
             return -1;
         }
@@ -1507,6 +1514,7 @@ int sim65_lbl_load(sim65 s, const char *lblname)
             sim65_lbl_add(s, addr, name);
         line ++;
     }
+    fclose(f);
     return 0;
 }
 
