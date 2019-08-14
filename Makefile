@@ -28,6 +28,7 @@ all: $(BDIR)/atarisim
 
 SRC=\
  src/atari.c\
+ src/dosfname.c\
  src/hw.c\
  src/main.c\
  src/mathpack.c\
@@ -46,7 +47,8 @@ $(ODIR):
 	mkdir -p $@
 
 
-$(ODIR)/atari.o: src/atari.c src/atari.h src/sim65.h src/mathpack.h
+$(ODIR)/atari.o: src/atari.c src/atari.h src/sim65.h src/mathpack.h src/dosfname.h
+$(ODIR)/dosfname.o: src/dosfname.c src/dosfname.h
 $(ODIR)/hw.o: src/hw.c src/hw.h src/sim65.h
 $(ODIR)/main.o: src/main.c src/atari.h src/sim65.h src/hw.h
 $(ODIR)/mathpack.o: src/mathpack.c src/mathpack.h src/sim65.h src/mathpack_bin.h

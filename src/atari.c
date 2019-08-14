@@ -16,6 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "atari.h"
+#include "dosfname.h"
 #include "mathpack.h"
 #include "hw.h"
 #include "sim65.h"
@@ -805,7 +806,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                     regs->y = 0xA8;
                     return 0;
             }
-            fhand[chn] = fopen(fname, flags);
+            fhand[chn] = dosfopen(fname, flags);
             if (!fhand[chn])
             {
                 sim65_dprintf(s, "DISK OPEN: error %s", strerror(errno));
