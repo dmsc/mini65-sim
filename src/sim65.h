@@ -18,6 +18,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdio.h>
 
 typedef struct sim65s *sim65;
 
@@ -84,6 +85,8 @@ struct sim65_profile {
 
 /// Creates new simulator state, with no address regions defined.
 sim65 sim65_new();
+/// Deletes simulator state, freeing all memory.
+void sim65_free(sim65 s);
 /// Adds an uninitialized RAM region.
 void sim65_add_ram(sim65 s, unsigned addr, unsigned len);
 /// Adds a zeroed RAM region.
@@ -94,6 +97,8 @@ void sim65_add_data_ram(sim65 s, unsigned addr, const unsigned char *data, unsig
 void sim65_add_data_rom(sim65 s, unsigned addr, const unsigned char *data, unsigned len);
 /// Sets debug flag to "level".
 void sim65_set_debug(sim65 s, enum sim65_debug level);
+/// Sets tracing file, instead of stderr..
+void sim65_set_trace_file(sim65 s, FILE *f);
 /// Sets the error level to "level"
 void sim65_set_error_level(sim65 s, enum sim65_error_lvl level);
 /// Prints message if debug flag was given debug
@@ -167,8 +172,8 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr);
 ///          returning != 0 or execution errors.
 enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
 
-/// Prints the current register values
-void sim65_print_reg(sim65 s);
+/// Prints the current register values to given file
+void sim65_print_reg(sim65 s, FILE *f);
 
 /// Returns memory address of last error
 uint16_t sim65_error_addr(sim65 s);

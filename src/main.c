@@ -24,15 +24,16 @@
 #include <unistd.h>
 
 static char *prog_name;
+static FILE *trace_file;
 
 static void print_help(void)
 {
     fprintf(stderr, "Usage: %s [options] <filename>\n"
                     "Options:\n"
                     " -h: Show this help\n"
-                    " -d: Print debug messages\n"
-                    " -t: Print simulation trace\n"
-                    " -e <lvl>: Sets the error level to 'none', 'mem' or 'full'\n"
+                    " -d: Print debug messages to standard error\n"
+                    " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
+                    " -t <file>: Store simulation trace into file\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n"
                     " -p <file>: Store profile information into file\n",
@@ -89,6 +90,17 @@ static void store_prof(const char *fname, sim65 s)
     fclose(f);
 }
 
+static void set_trace_file(const char *fname, sim65 s)
+{
+    trace_file = fopen(fname, "w");
+    if (!trace_file)
+    {
+        perror(fname);
+        exit_error("can't open trace file.");
+    }
+    sim65_set_trace_file(s, trace_file);
+}
+
 int main(int argc, char **argv)
 {
     sim65 s;
@@ -101,12 +113,13 @@ int main(int argc, char **argv)
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "tdhr:l:e:p:")) != -1)
+    while ((opt = getopt(argc, argv, "t:dhr:l:e:p:")) != -1)
     {
         switch (opt)
         {
             case 't': // trace
                 sim65_set_debug(s, sim65_debug_trace);
+                set_trace_file(optarg, s);
                 break;
             case 'd': // debug
                 sim65_set_debug(s, sim65_debug_messages);
@@ -177,6 +190,8 @@ int main(int argc, char **argv)
     sim65_dprintf(s, "Total cycles: %ld", sim65_get_cycles(s));
     if (profname)
         store_prof(profname, s);
-    free(s);
+    sim65_free(s);
+    if (trace_file)
+        fclose(trace_file);
     return 0;
 }

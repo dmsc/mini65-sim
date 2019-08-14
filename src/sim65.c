@@ -49,6 +49,7 @@ struct sim65s
     enum sim65_debug debug;
     enum sim65_error error;
     enum sim65_error_lvl errlvl;
+    FILE *trace_file;
     unsigned err_addr;
     uint64_t cycles;
     uint64_t cycle_limit;
@@ -150,11 +151,18 @@ void sim65_set_cycle_limit(sim65 s, uint64_t limit)
 sim65 sim65_new()
 {
     sim65 s = (sim65)calloc(sizeof(struct sim65s), 1);
+    s->trace_file = stderr;
     s->r.s = 0xFF;
     s->p_valid = 0xFF;
     set_flags(s, 0xFF, 0x34);
     memset(s->mems, ms_undef | ms_invalid, MAXRAM * sizeof(s->mems[0]));
     return s;
+}
+
+void sim65_free(sim65 s)
+{
+    free(s->labels);
+    free(s);
 }
 
 void sim65_add_ram(sim65 s, unsigned addr, unsigned len)
@@ -642,7 +650,7 @@ static void next(sim65 s)
     }
 
     if (s->debug >= sim65_debug_trace)
-        sim65_print_reg(s);
+        sim65_print_reg(s, s->trace_file);
 
     if (s->cycle_limit && s->cycles >= s->cycle_limit)
     {
@@ -887,6 +895,14 @@ enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
 void sim65_set_debug(sim65 s, enum sim65_debug level)
 {
     s->debug = level;
+}
+
+void sim65_set_trace_file(sim65 s, FILE *f)
+{
+    if (f)
+        s->trace_file = f;
+    else
+        s->trace_file = stderr;
 }
 
 void sim65_set_error_level(sim65 s, enum sim65_error_lvl level)
@@ -1384,7 +1400,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
     }
 }
 
-void sim65_print_reg(const sim65 s)
+void sim65_print_reg(const sim65 s, FILE *f)
 {
     char buffer[256];
     char *buf = buffer;
@@ -1403,8 +1419,8 @@ void sim65_print_reg(const sim65 s)
     PHX4(s->r.pc);
     *buf++ = ' ';
     print_curr_ins(s, s->r.pc, buf, 1);
-    fputs(buffer, stderr);
-    putc('\n', stderr);
+    fputs(buffer, f);
+    putc('\n', f);
 }
 
 char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr)
@@ -1415,36 +1431,40 @@ char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr)
 
 int sim65_dprintf(sim65 s, const char *format, ...)
 {
+    char buf[1024];
     int size;
     va_list ap;
-    va_start(ap, format);
+
     if (s->debug >= sim65_debug_messages)
     {
+        // Print original message to a string
+        va_start(ap, format);
+        vsnprintf(buf, 1024, format, ap);
+        va_end(ap);
+        // Print to stderr always
+        if (s->trace_file != stderr)
+            size = fprintf(stderr, "sim65: %s\n", buf);
+        // And print to trace file, if trace is active
         if (s->debug >= sim65_debug_trace)
-            fprintf(stderr, "%08" PRIX64 ": ", s->cycles);
-        else
-            fprintf(stderr, "sim65: ");
-        size = vfprintf(stderr, format, ap);
-        fprintf(stderr, "\n");
+            size = fprintf(s->trace_file, "%08" PRIX64 ": %s\n", s->cycles, buf);
     }
     else
         size = 0;
-    va_end(ap);
     return size;
 }
 
 int sim65_eprintf(sim65 s, const char *format, ...)
 {
+    char buf[1024];
     int size;
     va_list ap;
     va_start(ap, format);
-    if (s->debug >= sim65_debug_trace)
-        fprintf(stderr, "%08" PRIX64 ": ERROR, ", s->cycles);
-    else
-        fprintf(stderr, "sim65: ERROR, ");
-    size = vfprintf(stderr, format, ap);
-    fprintf(stderr, "\n");
+    vsnprintf(buf, 1024, format, ap);
     va_end(ap);
+    if (s->trace_file != stderr)
+        size = fprintf(stderr, "sim65: ERROR, %s\n", buf);
+    if (s->debug >= sim65_debug_trace)
+        size = fprintf(s->trace_file, "%08" PRIX64 ": ERROR, %s\n", s->cycles, buf);
     return size;
 }
 
@@ -1504,6 +1524,7 @@ int sim65_lbl_load(sim65 s, const char *lblname)
             break;
         else if (e != 2)
         {
+            fclose(f);
             sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
             return -1;
         }
@@ -1511,6 +1532,7 @@ int sim65_lbl_load(sim65 s, const char *lblname)
             sim65_lbl_add(s, addr, name);
         line ++;
     }
+    fclose(f);
     return 0;
 }
 
