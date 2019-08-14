@@ -40,7 +40,8 @@ enum sim65_error {
     sim65_err_break       = -7,   // 0
     sim65_err_invalid_ins = -8,   // 0
     sim65_err_call_ret    = -9,   // 0
-    sim65_err_user        = -10   // 0
+    sim65_err_cycle_limit = -10,  // 0
+    sim65_err_user        = -11   // 0
 };
 
 /// Error levels - makes simulation return on only certain errors critical most
@@ -144,6 +145,12 @@ void sim65_add_callback_range(sim65 s, unsigned addr, unsigned len,
 
 /// Sets or clear a flag in the simulation flag register
 void sim65_set_flags(sim65 s, uint8_t flag, uint8_t val);
+
+/** Sets a limit for the number of cycles executed.
+ *  Simulation will return with @sim65_err_cycle_limit after this amount of
+ *  cycles are executed.
+ *  A value of 0 disables the limit. */
+void sim65_set_cycle_limit(sim65 s, uint64_t limit);
 
 /// Reads from simulation state.
 unsigned sim65_get_byte(sim65 s, unsigned addr);

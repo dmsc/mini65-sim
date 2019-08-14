@@ -16,6 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "sim65.h"
+#include <inttypes.h>
 #include <likely.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -49,7 +50,8 @@ struct sim65s
     enum sim65_error error;
     enum sim65_error_lvl errlvl;
     unsigned err_addr;
-    unsigned cycles;
+    uint64_t cycles;
+    uint64_t cycle_limit;
     unsigned do_prof;
     struct sim65_reg r;
     uint8_t p_valid;
@@ -94,6 +96,7 @@ static int get_error_exit(sim65 s)
         case sim65_err_break:
         case sim65_err_invalid_ins:
         case sim65_err_call_ret:
+        case sim65_err_cycle_limit:
         case sim65_err_user:
             // Exit always
             return 1;
@@ -134,6 +137,14 @@ static uint8_t get_flags(sim65 s, uint8_t mask)
 void sim65_set_flags(sim65 s, uint8_t flag, uint8_t val)
 {
     set_flags(s, flag, val);
+}
+
+void sim65_set_cycle_limit(sim65 s, uint64_t limit)
+{
+    if (limit)
+        s->cycle_limit = s->cycles + limit;
+    else
+        s->cycle_limit = 0;
 }
 
 sim65 sim65_new()
@@ -632,6 +643,12 @@ static void next(sim65 s)
 
     if (s->debug >= sim65_debug_trace)
         sim65_print_reg(s);
+
+    if (s->cycle_limit && s->cycles >= s->cycle_limit)
+    {
+        set_error(s, sim65_err_cycle_limit, s->r.pc);
+        return;
+    }
 
     // Read instruction and data
     ins = readPc(s, 0);
@@ -1404,7 +1421,7 @@ int sim65_dprintf(sim65 s, const char *format, ...)
     if (s->debug >= sim65_debug_messages)
     {
         if (s->debug >= sim65_debug_trace)
-            fprintf(stderr, "%08X: ", s->cycles);
+            fprintf(stderr, "%08" PRIX64 ": ", s->cycles);
         else
             fprintf(stderr, "sim65: ");
         size = vfprintf(stderr, format, ap);
@@ -1422,7 +1439,7 @@ int sim65_eprintf(sim65 s, const char *format, ...)
     va_list ap;
     va_start(ap, format);
     if (s->debug >= sim65_debug_trace)
-        fprintf(stderr, "%08X: ERROR, ", s->cycles);
+        fprintf(stderr, "%08" PRIX64 ": ERROR, ", s->cycles);
     else
         fprintf(stderr, "sim65: ERROR, ");
     size = vfprintf(stderr, format, ap);
@@ -1449,6 +1466,7 @@ const char *sim65_error_str(sim65 s, enum sim65_error e)
         "BRK instruction executed",
         "invalid instruction executed",
         "return from emulator",
+        "cycle limit reached",
         "user defined error"
     };
 
@@ -1496,7 +1514,7 @@ int sim65_lbl_load(sim65 s, const char *lblname)
     return 0;
 }
 
-unsigned long sim65_get_cycles(const sim65 s)
+uint64_t sim65_get_cycles(const sim65 s)
 {
     return s->cycles;
 }
