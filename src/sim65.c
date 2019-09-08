@@ -1442,7 +1442,7 @@ int sim65_dprintf(sim65 s, const char *format, ...)
         vsnprintf(buf, 1024, format, ap);
         va_end(ap);
         // Print to stderr always
-        if (s->trace_file != stderr)
+        if (s->debug < sim65_debug_trace || s->trace_file != stderr)
             size = fprintf(stderr, "sim65: %s\n", buf);
         // And print to trace file, if trace is active
         if (s->debug >= sim65_debug_trace)
@@ -1461,7 +1461,7 @@ int sim65_eprintf(sim65 s, const char *format, ...)
     va_start(ap, format);
     vsnprintf(buf, 1024, format, ap);
     va_end(ap);
-    if (s->trace_file != stderr)
+    if (s->debug < sim65_debug_trace || s->trace_file != stderr)
         size = fprintf(stderr, "sim65: ERROR, %s\n", buf);
     if (s->debug >= sim65_debug_trace)
         size = fprintf(s->trace_file, "%08" PRIX64 ": ERROR, %s\n", s->cycles, buf);
