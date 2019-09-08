@@ -1511,26 +1511,31 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
 
 int sim65_lbl_load(sim65 s, const char *lblname)
 {
-    int line = 1;
+    int line = 0;
     FILE *f = fopen(lblname, "r");
     if (!f)
         return -1;
     while (1)
     {
-        char name[32];
-        unsigned addr;
-        int e = fscanf(f, "al %6x .%31s\n", &addr, name);
+        char name[32], str[256];
+        unsigned addr = 0, page = 0;
+        int e = fscanf(f, "%255[^\n\r]\n", str);
         if (e == EOF)
             break;
-        else if (e != 2)
-        {
-            fclose(f);
-            sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
-            return -1;
-        }
-        else if (addr <= 0xFFFF)
-            sim65_lbl_add(s, addr, name);
         line ++;
+        // Try parsing a CC65 line:
+        if (2 != sscanf(str, "al %6x .%31s", &addr, name))
+        {
+            // No, try parsing MADS line:
+            if (3 != sscanf(str, "%02x %04x %31s", &page, &addr, name))
+            {
+                // Ignore line
+                sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
+                continue;
+            }
+        }
+        if (addr <= 0xFFFF && page == 0)
+            sim65_lbl_add(s, addr, name);
     }
     fclose(f);
     return 0;
