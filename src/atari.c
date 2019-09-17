@@ -969,7 +969,7 @@ static void atari_bios_init(sim65 s)
     for (i = 0; i < 8; i++)
         sim65_add_data_ram(s, ICHID + i * 16, iocv_empty, 16);
     // Copy HTAB table
-    sim65_add_data_rom(s, HATABS, hatab_default, sizeof(hatab_default));
+    sim65_add_data_ram(s, HATABS, hatab_default, sizeof(hatab_default));
     // Copy device handlers table
     sim65_add_data_rom(s, EDITRV, devhand_tables, sizeof(devhand_tables));
     sim65_add_data_rom(s, DISKDV, devhand_emudos, sizeof(devhand_emudos));
