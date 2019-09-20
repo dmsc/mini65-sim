@@ -593,7 +593,7 @@ static void do_extra_absy(sim65 s, unsigned addr)
 // Special case BIT instructions as sometimes are used to SKIP
 void do_bit(sim65 s, uint16_t addr)
 {
-    if (0 != (s->mems[addr] & ms_invalid))
+    if ((s->mems[addr] & ms_invalid) && !(s->mems[addr] & ms_callback))
         s->p_valid |= (FLAG_N | FLAG_V | FLAG_Z);
     else
     {
