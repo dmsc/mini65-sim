@@ -17,6 +17,7 @@
  */
 #include "atari.h"
 #include "sim65.h"
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,25 +64,36 @@ static void store_prof(const char *fname, sim65 s)
         exit_error("can't open profile.");
     }
     struct sim65_profile pdata = sim65_get_profile_info(s);
+    uint64_t max_count = 1000;
+    for (unsigned i=0; i<65536; i++)
+        if (pdata.exe_count[i] > max_count)
+            max_count = pdata.exe_count[i];
+    int digits = 0;
+    while( max_count )
+    {
+        digits ++;
+        max_count /= 10;
+    }
     char buf[256];
     for (unsigned i=0; i<65536; i++)
         if (pdata.exe_count[i])
         {
-            fprintf(f, "%9d %04X %s", pdata.exe_count[i], i, sim65_disassemble(s, buf, i));
+            fprintf(f, "%*"PRIu64" %04X %s", digits, pdata.exe_count[i], i,
+                    sim65_disassemble(s, buf, i));
             if (pdata.branch_taken[i])
-                fprintf(f, " (%d times taken)", pdata.branch_taken[i]);
+                fprintf(f, " (%"PRIu64" times taken)", pdata.branch_taken[i]);
             fputc('\n', f);
         }
     // Summary at end
-    unsigned ti  = pdata.total.instructions;
-    unsigned tb  = pdata.total.branch_skip + pdata.total.branch_taken;
-    fprintf(f, "--------- Total Instructions:    %9d\n"
-               "--------- Total Branches:        %9d (%.1f%% of instructions)\n"
-               "--------- Total Branches Taken:  %9d (%.1f%% of branches)\n"
-               "--------- Branches cross-page:   %9d (%.1f%% of taken branches)\n"
-               "--------- Absolute X cross-page: %9d\n"
-               "--------- Absolute Y cross-page: %9d\n"
-               "--------- Indirect Y cross-page: %9d\n",
+    uint64_t ti  = pdata.total.instructions;
+    uint64_t tb  = pdata.total.branch_skip + pdata.total.branch_taken;
+    fprintf(f, "--------- Total Instructions:    %10"PRIu64"\n"
+               "--------- Total Branches:        %10"PRIu64" (%.1f%% of instructions)\n"
+               "--------- Total Branches Taken:  %10"PRIu64" (%.1f%% of branches)\n"
+               "--------- Branches cross-page:   %10"PRIu64" (%.1f%% of taken branches)\n"
+               "--------- Absolute X cross-page: %10"PRIu64"\n"
+               "--------- Absolute Y cross-page: %10"PRIu64"\n"
+               "--------- Indirect Y cross-page: %10"PRIu64"\n",
                ti, tb, 100.0 * tb / ti,
                pdata.total.branch_taken, 100.0 * pdata.total.branch_taken / tb,
                pdata.total.branch_extra, 100.0 * pdata.total.branch_extra / pdata.total.branch_taken,

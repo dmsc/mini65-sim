@@ -62,15 +62,15 @@ struct sim65s
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
     struct {
-        unsigned exe[MAXRAM];   // Times this instruction was executed
-        unsigned branch[MAXRAM];// Times this branch was taken
-        unsigned branch_skip;   // Number of branches skipped
-        unsigned branch_taken;  // Number of branches taken
-        unsigned branch_extra;  // Extra cycles per branch to other page
-        unsigned abs_x_extra;   // Extra cycles per ABS,X crossing page
-        unsigned abs_y_extra;   // Extra cycles per ABS,Y crossing page
-        unsigned ind_y_extra;   // Extra cycles per (),Y crossing page
-        unsigned instructions;  // Number of instructions
+        uint64_t exe[MAXRAM];   // Times this instruction was executed
+        uint64_t branch[MAXRAM];// Times this branch was taken
+        uint64_t branch_skip;   // Number of branches skipped
+        uint64_t branch_taken;  // Number of branches taken
+        uint64_t branch_extra;  // Extra cycles per branch to other page
+        uint64_t abs_x_extra;   // Extra cycles per ABS,X crossing page
+        uint64_t abs_y_extra;   // Extra cycles per ABS,Y crossing page
+        uint64_t ind_y_extra;   // Extra cycles per (),Y crossing page
+        uint64_t instructions;  // Number of instructions
     } prof;
     char *labels;
 };
@@ -639,7 +639,8 @@ static void do_rti(sim65 s)
 
 static void next(sim65 s)
 {
-    unsigned ins, data, val, old_pc = 0, old_cycles = 0;
+    unsigned ins, data, val, old_pc = 0;
+    uint64_t old_cycles = 0;
 
     // See if out vector
     if (s->cb_exec[s->r.pc])
