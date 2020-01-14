@@ -72,9 +72,10 @@ enum scr_command {
     scr_cmd_fillto
 };
 
-static int sys_screen(enum scr_command cmd, int x, int y, int data)
+static void sys_screen(enum scr_command cmd, int x, int y, int data, struct sim65_reg *r)
 {
     static int sx = 40, sy = 24, numc = 256;
+    static uint8_t scr[320*200]; // Simulated screen
 
     switch (cmd)
     {
@@ -82,6 +83,8 @@ static int sys_screen(enum scr_command cmd, int x, int y, int data)
             atari_printf("SCREEN: set graphics %d%s%s\n", data & 15,
                          data & 16 ? " with text window": "",
                          data & 32 ? " don't clear" : "" );
+            if (0 == (data & 32))
+                memset(scr, 0, 320*200);
             switch (data & 15)
             {
                 case 0:
@@ -153,25 +156,32 @@ static int sys_screen(enum scr_command cmd, int x, int y, int data)
                     numc = 4;
                     break;
             }
-            return 0;
-            break;
+            r->y = 0;
+            return;
         case scr_cmd_locate:
             atari_printf("SCREEN: locate %d,%d\n", x, y);
+            if ( x >= 0 && x < sx && y >= 0 && y < sx )
+                r->a = scr[y * 320 + x];
             break;
         case scr_cmd_plot:
             atari_printf("SCREEN: plot %d,%d  color %d\n", x, y, data % numc);
+            if ( x >= 0 && x < sx && y >= 0 && y < sx )
+                scr[y * 320 + x] = data % numc;
             break;
         case scr_cmd_drawto:
+            // TODO: emulate line draw
             atari_printf("SCREEN: draw to %d,%d  color %d\n", x, y, data % numc);
             break;
         case scr_cmd_fillto:
+            // TODO: emulate line fill
             atari_printf("SCREEN: fill to %d,%d  color %d, fill color %d\n",
                     x, y, (data & 0xFF) % numc, (data >>8) % numc );
             break;
     }
     if (x < 0 || x >= sx || y < 0 || y >= sy )
-        return -1;
-    return 0;
+        r->y = -1;
+    else
+        r->y = 0;
 }
 
 // Utility functions
@@ -620,19 +630,18 @@ static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     {
         case DEVR_OPEN:
             sim65_dprintf(s, "SCREEN: open mode %d", 0x10 ^ ((ax1 & 0xF0) | (ax2 & 0x0F)));
-            regs->y = sys_screen(scr_cmd_graphics, x, y, (ax2 & 0x0F) | (ax1 & 0xF0));
+            sys_screen(scr_cmd_graphics, x, y, (ax2 & 0x0F) | (ax1 & 0xF0), regs);
             return 0;
         case DEVR_CLOSE:
             sim65_dprintf(s, "SCREEN: close");
             return 0; // OK
         case DEVR_GET:
             sim65_dprintf(s, "SCREEN: get (locate) @(%d, %d)", x, y);
-            regs->y = sys_screen(scr_cmd_locate, x, y, 0);
-            regs->a = 0;
+            sys_screen(scr_cmd_locate, x, y, 0, regs);
             return 0;
         case DEVR_PUT:
-            sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, regs->a);
-            regs->y = sys_screen(scr_cmd_plot, x, y, regs->a);
+            sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, regs->a, regs);
+            sys_screen(scr_cmd_plot, x, y, regs->a, regs);
             return 0;
         case DEVR_STATUS:
             sim65_dprintf(s, "SCREN cmd STATUS");
@@ -642,9 +651,9 @@ static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                           cmd == 17 ? "drawto" : cmd == 18 ? "fillto" : "unknown",
                           x, y, peek(s, ATACHR), peek(s, FILDAT));
             if (cmd == 17)
-                regs->y = sys_screen(scr_cmd_drawto, x, y, peek(s, ATACHR));
+                sys_screen(scr_cmd_drawto, x, y, peek(s, ATACHR), regs);
             else if (cmd == 18)
-                regs->y = sys_screen(scr_cmd_fillto, x, y, peek(s, ATACHR) | (peek(s, FILDAT)<<8) );
+                sys_screen(scr_cmd_fillto, x, y, peek(s, ATACHR) | (peek(s, FILDAT)<<8), regs);
             return 0;
         case DEVR_INIT:
             return 0;
