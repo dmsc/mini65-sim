@@ -60,26 +60,26 @@ enum sim65_error_lvl {
 /// Structure with profile information
 struct sim65_profile {
     /// Array with count of executed instructions at each address, from 0 to 65535.
-    const unsigned *exe_count;
+    const uint64_t *exe_count;
     /// Array with count of taken branches from each address, from 0 to 65535.
-    const unsigned *branch_taken;
+    const uint64_t *branch_taken;
     struct {
         /// Total number of cycles
-        unsigned cycles;
+        uint64_t cycles;
         /// Total number of instructions executed
-        unsigned instructions;
+        uint64_t instructions;
         /// Total extra cycles per read indirect Y to other page
-        unsigned extra_ind_y;
+        uint64_t extra_ind_y;
         /// Total extra cycles per read absolute X to other page
-        unsigned extra_abs_x;
+        uint64_t extra_abs_x;
         /// Total extra cycles per read absolute y to other page
-        unsigned extra_abs_y;
+        uint64_t extra_abs_y;
         /// Total number of branches skipped
-        unsigned branch_skip;
+        uint64_t branch_skip;
         /// Total number of branches taken
-        unsigned branch_taken;
+        uint64_t branch_taken;
         /// Total extra cycles per branch taken to other page
-        unsigned branch_extra;
+        uint64_t branch_extra;
     } total;
 };
 

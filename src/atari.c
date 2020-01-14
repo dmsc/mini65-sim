@@ -16,6 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "atari.h"
+#include "dosfname.h"
 #include "mathpack.h"
 #include "hw.h"
 #include "sim65.h"
@@ -26,13 +27,23 @@
 #include <string.h>
 #include <sys/time.h>
 
-static int (*atari_get_char)(void);
-static void (*atari_put_char)(int);
+static int (*atari_get_char)(void);  /* Reads a character from standard input */
+static int (*atari_peek_char)(void); /* See if there is a character available to read */
+static void (*atari_put_char)(int);  /* Put a character to standard output */
 
 // Standard put/get character
 static int sys_get_char(void)
 {
     int c   = getchar();
+    if (c == '\n')
+        c = 0x9B;
+    return c;
+}
+
+static int sys_peek_char(void)
+{
+    int c   = getchar();
+    ungetc(c, stdin);
     if (c == '\n')
         c = 0x9B;
     return c;
@@ -804,7 +815,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                     regs->y = 0xA8;
                     return 0;
             }
-            fhand[chn] = fopen(fname, flags);
+            fhand[chn] = dosfopen(fname, flags);
             if (!fhand[chn])
             {
                 sim65_dprintf(s, "DISK OPEN: error %s", strerror(errno));
@@ -900,6 +911,54 @@ static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
+static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    static int ch = 0xFF;
+    static uint8_t kcodes[128] = {
+// ;    A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
+0xA0,0xBF,0x95,0x92,0xBA,0xAA,0xB8,0xBD,0xB9,0x8d,0x81,0x85,0x80,0xA5,0xA3,0x88,
+// P    Q    R    S    T    U    V    W    X    Y    Z  ESC    ^    v   <-   ->    _
+0x8A,0xAF,0xA8,0xBE,0xAD,0x8B,0x90,0xAE,0x96,0xAB,0x97,0x1C,0x8E,0x8F,0x86,0x87,
+//      !    "    #    $    %    &    '    (    )    *    +    ,    -    .    /
+0x21,0x5F,0x5E,0x5A,0x58,0x5D,0x5B,0x73,0x70,0x72,0x07,0x06,0x20,0x0E,0x22,0x26,
+// 0    1    2    3    4    5    6    7    8    9    :    ;    <    =    >    ?
+0x32,0x1F,0x1E,0x1A,0x18,0x1D,0x1B,0x33,0x35,0x30,0x42,0x02,0x36,0x0F,0x37,0x66,
+// @    A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
+0x75,0x3F,0x15,0x12,0x3A,0x2A,0x38,0x3D,0x39,0x0D,0x01,0x05,0x00,0x25,0x23,0x08,
+// P    Q    R    S    T    U    V    W    X    Y    Z    [    \    ]    ^    _
+0x0A,0x2F,0x28,0x3E,0x2D,0x0B,0x10,0x2E,0x16,0x2B,0x17,0x60,0x46,0x64,0x47,0x4E,
+// `    a    b    c    d    e    f    g    h    i    j    k    l    m    n    o
+0xA2,0x7F,0x55,0x52,0x7A,0x6A,0x78,0x7D,0x79,0x4D,0x41,0x45,0x40,0x65,0x63,0x48,
+// p    q    r    s    t    u    v    w    x    y    z  C-;    |  CLS   BS  TAB
+0x4A,0x6F,0x68,0x7E,0x6D,0x4B,0x50,0x6E,0x56,0x6B,0x57,0x82,0x4F,0x76,0x34,0x2C
+    };
+
+    if (data == sim65_cb_read)
+    {
+        // Return value if we have one
+        if (ch != 0xFF)
+            return ch;
+        // Else, see if we have a character available
+        int c = atari_peek_char();
+        if (c == EOF)
+            return 0xFF;
+        else
+        {
+            // Translate to key-code
+            if (c == 0x9B)
+                ch = 0x0C;
+            else
+                ch = kcodes[c & 0x7F];
+        }
+        return ch;
+    }
+    else
+    {
+        // Simply write over our internal value
+        ch = data;
+    }
+    return 0;
+}
 // Define our memory map, usable for applications 46.25k.
 #define MAX_RAM  (0xD000)       // RAM up to 0xD000 (52k)
 #define APP_RAM  (0xC000)       // Usable to applications 0xC000 (48k)
@@ -919,7 +978,7 @@ static void atari_bios_init(sim65 s)
     for (i = 0; i < 8; i++)
         sim65_add_data_ram(s, ICHID + i * 16, iocv_empty, 16);
     // Copy HTAB table
-    sim65_add_data_rom(s, HATABS, hatab_default, sizeof(hatab_default));
+    sim65_add_data_ram(s, HATABS, hatab_default, sizeof(hatab_default));
     // Copy device handlers table
     sim65_add_data_rom(s, EDITRV, devhand_tables, sizeof(devhand_tables));
     sim65_add_data_rom(s, DISKDV, devhand_emudos, sizeof(devhand_emudos));
@@ -937,9 +996,13 @@ static void atari_bios_init(sim65 s)
     add_rts_callback(s, CIOERR, 1, sim_CIOERR);
     // Math Package
     fp_init(s);
-    // Random OS addresses
+    // Simulate keyboard character "CH"
+    sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_read);
+    sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_read);
+    // Simulate RTCLOK
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_read);
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_write);
+    // Random OS addresses
     poke(s, 8, 0); // WARM START
     poke(s, 17, 0x80); // BREAK key not pressed
     dpoke(s, 10, 0x0); // DOSVEC, go to DOS vector, use 0 as simulation return
@@ -1223,6 +1286,7 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char
         atari_put_char = put_char;
     else
         atari_put_char = sys_put_char;
+    atari_peek_char = sys_peek_char;
 
     // Static variables
     editr_last_row = 0;

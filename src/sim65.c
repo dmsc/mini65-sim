@@ -62,15 +62,15 @@ struct sim65s
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
     struct {
-        unsigned exe[MAXRAM];   // Times this instruction was executed
-        unsigned branch[MAXRAM];// Times this branch was taken
-        unsigned branch_skip;   // Number of branches skipped
-        unsigned branch_taken;  // Number of branches taken
-        unsigned branch_extra;  // Extra cycles per branch to other page
-        unsigned abs_x_extra;   // Extra cycles per ABS,X crossing page
-        unsigned abs_y_extra;   // Extra cycles per ABS,Y crossing page
-        unsigned ind_y_extra;   // Extra cycles per (),Y crossing page
-        unsigned instructions;  // Number of instructions
+        uint64_t exe[MAXRAM];   // Times this instruction was executed
+        uint64_t branch[MAXRAM];// Times this branch was taken
+        uint64_t branch_skip;   // Number of branches skipped
+        uint64_t branch_taken;  // Number of branches taken
+        uint64_t branch_extra;  // Extra cycles per branch to other page
+        uint64_t abs_x_extra;   // Extra cycles per ABS,X crossing page
+        uint64_t abs_y_extra;   // Extra cycles per ABS,Y crossing page
+        uint64_t ind_y_extra;   // Extra cycles per (),Y crossing page
+        uint64_t instructions;  // Number of instructions
     } prof;
     char *labels;
 };
@@ -593,7 +593,7 @@ static void do_extra_absy(sim65 s, unsigned addr)
 // Special case BIT instructions as sometimes are used to SKIP
 void do_bit(sim65 s, uint16_t addr)
 {
-    if (0 != (s->mems[addr] & ms_invalid))
+    if ((s->mems[addr] & ms_invalid) && !(s->mems[addr] & ms_callback))
         s->p_valid |= (FLAG_N | FLAG_V | FLAG_Z);
     else
     {
@@ -639,7 +639,8 @@ static void do_rti(sim65 s)
 
 static void next(sim65 s)
 {
-    unsigned ins, data, val, old_pc = 0, old_cycles = 0;
+    unsigned ins, data, val, old_pc = 0;
+    uint64_t old_cycles = 0;
 
     // See if out vector
     if (s->cb_exec[s->r.pc])
@@ -1442,7 +1443,7 @@ int sim65_dprintf(sim65 s, const char *format, ...)
         vsnprintf(buf, 1024, format, ap);
         va_end(ap);
         // Print to stderr always
-        if (s->trace_file != stderr)
+        if (s->debug < sim65_debug_trace || s->trace_file != stderr)
             size = fprintf(stderr, "sim65: %s\n", buf);
         // And print to trace file, if trace is active
         if (s->debug >= sim65_debug_trace)
@@ -1461,7 +1462,7 @@ int sim65_eprintf(sim65 s, const char *format, ...)
     va_start(ap, format);
     vsnprintf(buf, 1024, format, ap);
     va_end(ap);
-    if (s->trace_file != stderr)
+    if (s->debug < sim65_debug_trace || s->trace_file != stderr)
         size = fprintf(stderr, "sim65: ERROR, %s\n", buf);
     if (s->debug >= sim65_debug_trace)
         size = fprintf(s->trace_file, "%08" PRIX64 ": ERROR, %s\n", s->cycles, buf);
@@ -1511,26 +1512,31 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
 
 int sim65_lbl_load(sim65 s, const char *lblname)
 {
-    int line = 1;
+    int line = 0;
     FILE *f = fopen(lblname, "r");
     if (!f)
         return -1;
     while (1)
     {
-        char name[32];
-        unsigned addr;
-        int e = fscanf(f, "al %6x .%31s\n", &addr, name);
+        char name[32], str[256];
+        unsigned addr = 0, page = 0;
+        int e = fscanf(f, "%255[^\n\r]\n", str);
         if (e == EOF)
             break;
-        else if (e != 2)
-        {
-            fclose(f);
-            sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
-            return -1;
-        }
-        else if (addr <= 0xFFFF)
-            sim65_lbl_add(s, addr, name);
         line ++;
+        // Try parsing a CC65 line:
+        if (2 != sscanf(str, "al %6x .%31s", &addr, name))
+        {
+            // No, try parsing MADS line:
+            if (3 != sscanf(str, "%02x %04x %31s", &page, &addr, name))
+            {
+                // Ignore line
+                sim65_eprintf(s, "%s[%d]: invalid line on label file", lblname, line);
+                continue;
+            }
+        }
+        if (addr <= 0xFFFF && page == 0)
+            sim65_lbl_add(s, addr, name);
     }
     fclose(f);
     return 0;
