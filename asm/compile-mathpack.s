@@ -7,9 +7,6 @@ fr0     = $00d4    ;FP: Accumulator 0
 _fr3    = $00da    ;FP: Accumulator 3 (officially FRE)
 fr1     = $00e0    ;FP: Accumulator 1
 fr2     = $00e6    ;FP: Accumulator 2
-_fpcocnt= $00ec    ;FP: temporary storage - polynomial coefficient counter
-_fptemp0= $00ed    ;FP: temporary storage - transcendental temporary (officially EEXP)
-_fptemp1= $00ee    ;FP: temporary storage - transcendental temporary (officially NSIGN)
 
 cix     = $00f2    ;FP: Character index
 inbuff  = $00f3    ;FP: ASCII conversion buffer
