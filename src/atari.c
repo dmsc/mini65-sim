@@ -998,7 +998,7 @@ static void atari_bios_init(sim65 s)
     fp_init(s);
     // Simulate keyboard character "CH"
     sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_read);
-    sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_read);
+    sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_write);
     // Simulate RTCLOK
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_read);
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_write);
