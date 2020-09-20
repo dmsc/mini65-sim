@@ -1514,7 +1514,9 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
     // Allocate labels if not already done
     if (!s->labels)
         s->labels = (char *)calloc(65536, 32);
-    strncpy( get_label(s, addr), lbl, 31);
+    char *l = get_label(s, addr);
+    strncpy(l, lbl, 31);
+    l[31] = 0;
 }
 
 int sim65_lbl_load(sim65 s, const char *lblname)
