@@ -276,7 +276,8 @@ static uint8_t readPc_slow(sim65 s, uint16_t addr)
 static inline uint8_t readPc(sim65 s, unsigned offset)
 {
     uint16_t addr = s->r.pc + offset;
-    return likely(!(s->mems[addr] & ~(ms_rom | ms_callback))) ?
+    // Slow read if memory is undefined or invalid:
+    return likely(!(s->mems[addr] & (ms_undef | ms_invalid))) ?
            s->mem[addr] : readPc_slow(s, addr);
 }
 
@@ -293,7 +294,7 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
     {
         if (s->mems[addr] & ms_undef)
             set_error(s, sim65_err_read_undef, addr);
-        else
+        else if(s->mems[addr] & ms_invalid)
         {
             set_error(s, sim65_err_read_uninit, addr);
             s->mems[addr] &= ~ms_invalid; // Initializes the memory
@@ -304,7 +305,9 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
 
 static inline uint8_t readByte(sim65 s, uint16_t addr)
 {
-    return likely(!(s->mems[addr] & ~ms_rom)) ? s->mem[addr] : readByte_slow(s, addr);
+    // Slow read if memory is undefined, invalid or a callback location:
+    return likely(!(s->mems[addr] & (ms_undef | ms_invalid | ms_callback))) ?
+            s->mem[addr] : readByte_slow(s, addr);
 }
 
 static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
@@ -324,6 +327,7 @@ static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
 
 static inline void writeByte(sim65 s, uint16_t addr, uint8_t val)
 {
+    // Slow write if memory have any flag (rom, undefined, invalid or a callback location):
     if (likely(!(s->mems[addr])))
         s->mem[addr] = val;
     else
