@@ -235,7 +235,7 @@ void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb, enum sim65_cb
         case sim65_cb_exec:
             s->cb_exec[addr] = cb;
             // Allow reading from next location, as CPU always reads two bytes
-            if (addr < MAXRAM)
+            if (addr + 1 < MAXRAM)
                 s->mems[addr + 1] &= ~(ms_undef | ms_invalid);
             break;
     }
