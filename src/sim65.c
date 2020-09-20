@@ -234,6 +234,9 @@ void sim65_add_callback(sim65 s, unsigned addr, sim65_callback cb, enum sim65_cb
             break;
         case sim65_cb_exec:
             s->cb_exec[addr] = cb;
+            // Allow reading from next location, as CPU always reads two bytes
+            if (addr < MAXRAM)
+                s->mems[addr + 1] &= ~(ms_undef | ms_invalid);
             break;
     }
 }
@@ -273,9 +276,9 @@ static uint8_t readPc_slow(sim65 s, uint16_t addr)
     return s->mem[addr];
 }
 
-static inline uint8_t readPc(sim65 s, unsigned offset)
+static inline uint8_t readPc(sim65 s)
 {
-    uint16_t addr = s->r.pc + offset;
+    uint16_t addr = s->r.pc;
     // Slow read if memory is undefined or invalid:
     return likely(!(s->mems[addr] & (ms_undef | ms_invalid))) ?
            s->mem[addr] : readPc_slow(s, addr);
@@ -663,13 +666,13 @@ static void next(sim65 s)
         return;
     }
 
-    // Read instruction and data
-    ins = readPc(s, 0);
-    if (ilen[ins] > 1)
-        data = readPc(s, 1);
+    // Read instruction and data - always prefetched in real 6502 CPU
+    ins = readPc(s);
+    data = readByte(s, s->r.pc + 1);
 
+    // And if instruction is 3 bytes, read high byte of data
     if (ilen[ins] > 2)
-        data |= readPc(s, 2) << 8;
+        data |= readByte(s, s->r.pc + 2) << 8;
 
     // If profiling, store old info
     if (s->do_prof)
