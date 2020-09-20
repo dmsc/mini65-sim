@@ -872,9 +872,9 @@ enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr)
     // Save original PC
     unsigned old_pc = s->r.pc;
 
-    // Use 0 as return address
-    s->r.pc = 0;
-    sim65_add_callback(s, 0, sim65_rts_callback, sim65_cb_exec);
+    // Use 0xFFFF as return address
+    s->r.pc = 0xFFFF;
+    sim65_add_callback(s, 0xFFFF, sim65_rts_callback, sim65_cb_exec);
 
     // Execute a JSR
     do_jsr(s, addr);

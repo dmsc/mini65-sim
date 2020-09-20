@@ -1005,7 +1005,7 @@ static void atari_bios_init(sim65 s)
     // Random OS addresses
     poke(s, 8, 0); // WARM START
     poke(s, 17, 0x80); // BREAK key not pressed
-    dpoke(s, 10, 0x0); // DOSVEC, go to DOS vector, use 0 as simulation return
+    dpoke(s, 10, 0xFFFF); // DOSVEC, go to DOS vector, use $FFFF as simulation return
     dpoke(s, 14, 0x800); // APPHI, lowest usable RAM area
     dpoke(s, 0x2e5, APP_RAM); // MEMTOP
     dpoke(s, 0x2e7, LOW_RAM); // MEMLO
