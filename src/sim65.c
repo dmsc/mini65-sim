@@ -64,6 +64,7 @@ struct sim65s
     struct {
         uint64_t exe[MAXRAM];   // Times this instruction was executed
         uint64_t branch[MAXRAM];// Times this branch was taken
+        uint64_t extra[MAXRAM]; // Number of extra cycles for crossing pages
         uint64_t branch_skip;   // Number of branches skipped
         uint64_t branch_taken;  // Number of branches taken
         uint64_t branch_extra;  // Extra cycles per branch to other page
@@ -358,7 +359,10 @@ static int readIndY(sim65 s, unsigned addr)
     {
         s->cycles++;
         if (s->do_prof)
+        {
             s->prof.ind_y_extra ++;
+            s->prof.extra[(s->r.pc-2) & 0xFFFF] ++;
+        }
     }
     return readByte(s, 0xFFFF & (addr + s->r.y));
 }
@@ -483,7 +487,10 @@ static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
         {
             s->cycles++;
             if (s->do_prof)
+            {
+                s->prof.extra[(s->r.pc-2) & 0xFFFF] ++;
                 s->prof.branch_extra ++;
+            }
         }
         s->r.pc = val;
     }
@@ -497,7 +504,10 @@ static void do_extra_absx(sim65 s, unsigned addr)
     {
         s->cycles++;
         if (s->do_prof)
+        {
+            s->prof.extra[(s->r.pc-3) & 0xFFFF] ++;
             s->prof.abs_x_extra ++;
+        }
     }
 }
 
@@ -507,7 +517,10 @@ static void do_extra_absy(sim65 s, unsigned addr)
     {
         s->cycles++;
         if (s->do_prof)
+        {
+            s->prof.extra[(s->r.pc-3) & 0xFFFF] ++;
             s->prof.abs_y_extra ++;
+        }
     }
 }
 
@@ -1561,6 +1574,7 @@ struct sim65_profile sim65_get_profile_info(const sim65 s)
     struct sim65_profile r;
     r.exe_count = s->prof.exe;
     r.branch_taken = s->prof.branch;
+    r.extra_cycles = s->prof.extra;
     r.total.branch_skip = s->prof.branch_skip;
     r.total.branch_taken = s->prof.branch_taken;
     r.total.branch_extra = s->prof.branch_extra;

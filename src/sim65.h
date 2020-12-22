@@ -63,6 +63,9 @@ struct sim65_profile {
     const uint64_t *exe_count;
     /// Array with count of taken branches from each address, from 0 to 65535.
     const uint64_t *branch_taken;
+    /// Array with count of extra cycles incurred because branch or indexed access
+    /// crossed a page.
+    const uint64_t *extra_cycles;
     struct {
         /// Total number of cycles
         uint64_t cycles;

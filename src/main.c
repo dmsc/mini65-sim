@@ -81,7 +81,10 @@ static void store_prof(const char *fname, sim65 s)
             fprintf(f, "%*"PRIu64" %04X %s", digits, pdata.exe_count[i], i,
                     sim65_disassemble(s, buf, i));
             if (pdata.branch_taken[i])
-                fprintf(f, " (%"PRIu64" times taken)", pdata.branch_taken[i]);
+                fprintf(f, " (%"PRIu64" times taken%s)", pdata.branch_taken[i],
+                        pdata.extra_cycles[i] ? ", crosses page" : "");
+            else if(pdata.extra_cycles[i])
+                fprintf(f, " (%"PRIu64" times crossed pages)", pdata.extra_cycles[i]);
             fputc('\n', f);
         }
     // Summary at end
