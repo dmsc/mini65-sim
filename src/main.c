@@ -78,25 +78,25 @@ static void store_prof(const char *fname, sim65 s)
     for (unsigned i=0; i<65536; i++)
         if (pdata.exe_count[i])
         {
-            fprintf(f, "%*"PRIu64" %04X %s", digits, pdata.exe_count[i], i,
+            fprintf(f, "%*" PRIu64 " %04X %s", digits, pdata.exe_count[i], i,
                     sim65_disassemble(s, buf, i));
             if (pdata.branch_taken[i])
-                fprintf(f, " (%"PRIu64" times taken%s)", pdata.branch_taken[i],
+                fprintf(f, " (%" PRIu64 " times taken%s)", pdata.branch_taken[i],
                         pdata.extra_cycles[i] ? ", crosses page" : "");
             else if(pdata.extra_cycles[i])
-                fprintf(f, " (%"PRIu64" times crossed pages)", pdata.extra_cycles[i]);
+                fprintf(f, " (%" PRIu64 " times crossed pages)", pdata.extra_cycles[i]);
             fputc('\n', f);
         }
     // Summary at end
     uint64_t ti  = pdata.total.instructions;
     uint64_t tb  = pdata.total.branch_skip + pdata.total.branch_taken;
-    fprintf(f, "--------- Total Instructions:    %10"PRIu64"\n"
-               "--------- Total Branches:        %10"PRIu64" (%.1f%% of instructions)\n"
-               "--------- Total Branches Taken:  %10"PRIu64" (%.1f%% of branches)\n"
-               "--------- Branches cross-page:   %10"PRIu64" (%.1f%% of taken branches)\n"
-               "--------- Absolute X cross-page: %10"PRIu64"\n"
-               "--------- Absolute Y cross-page: %10"PRIu64"\n"
-               "--------- Indirect Y cross-page: %10"PRIu64"\n",
+    fprintf(f, "--------- Total Instructions:    %10" PRIu64 "\n"
+               "--------- Total Branches:        %10" PRIu64 " (%.1f%% of instructions)\n"
+               "--------- Total Branches Taken:  %10" PRIu64 " (%.1f%% of branches)\n"
+               "--------- Branches cross-page:   %10" PRIu64 " (%.1f%% of taken branches)\n"
+               "--------- Absolute X cross-page: %10" PRIu64 "\n"
+               "--------- Absolute Y cross-page: %10" PRIu64 "\n"
+               "--------- Indirect Y cross-page: %10" PRIu64 "\n",
                ti, tb, 100.0 * tb / ti,
                pdata.total.branch_taken, 100.0 * pdata.total.branch_taken / tb,
                pdata.total.branch_extra, 100.0 * pdata.total.branch_extra / pdata.total.branch_taken,

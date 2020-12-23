@@ -176,7 +176,7 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr);
 enum sim65_error sim65_call(sim65 s, struct sim65_reg *regs, unsigned addr);
 
 /// Prints the current register values to given file
-void sim65_print_reg(sim65 s, FILE *f);
+void sim65_print_reg(const sim65 s, FILE *f);
 
 /// Returns memory address of last error
 uint16_t sim65_error_addr(sim65 s);
@@ -194,7 +194,7 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl);
 uint64_t sim65_get_cycles(const sim65 s);
 
 /// Activate instruction profiling.
-void sim65_set_profiling(sim65 s, int set);
+void sim65_set_profiling(const sim65 s, int set);
 
 /// Get's profiling information.
 /// @returns a sim65_profile struct with the profile data.

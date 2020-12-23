@@ -594,7 +594,7 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define IMP_A(op)   s->cycles += 2; val = s->r.a; op; s->r.a = val; SET_ZN
 #define IMP_Y(op)   s->cycles += 2; val = s->r.y; op; s->r.y = val; SET_ZN
 #define IMP_X(op)   s->cycles += 2; val = s->r.x; op; s->r.x = val; SET_ZN
-#define TXS(op)     s->cycles += 2; s->r.s = s->r.x;
+#define TXS()       s->cycles += 2; s->r.s = s->r.x;
 
 #define BRA_0(a)    do_branch(s, data, a, 0)
 #define BRA_1(a)    do_branch(s, data, a, 1)
