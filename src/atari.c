@@ -1341,7 +1341,7 @@ enum sim65_error atari_xex_load(sim65 s, const char *name)
             case 0:     // 0: Read first $FF
             case 1:     // 1: Read second $FF
                 if (c != 0xFF)
-                    return -1;
+                    return sim65_err_user;
                 break;
             case 2:     // 2: Read first byte of load address
                 saddr = c;
@@ -1393,7 +1393,7 @@ enum sim65_error atari_xex_load(sim65 s, const char *name)
     return e;
 }
 
-int atari_rom_load(sim65 s, int addr, const char *name)
+enum sim65_error atari_rom_load(sim65 s, int addr, const char *name)
 {
     int c, saddr = addr;
     FILE *f = fopen(name, "rb");

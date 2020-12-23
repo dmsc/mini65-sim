@@ -17,8 +17,7 @@
  */
 #pragma once
 
-// Forward
-typedef struct sim65s *sim65;
+#include "sim65.h"
 
 // Init bios callbacks, optionally passing a callback to print a
 // character and read a character
@@ -26,4 +25,4 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char
 // Load (and RUN) XEX file
 enum sim65_error atari_xex_load(sim65 s, const char *name);
 // Load ROM file
-int atari_rom_load(sim65 s, int addr, const char *name);
+enum sim65_error atari_rom_load(sim65 s, int addr, const char *name);
