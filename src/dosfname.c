@@ -20,8 +20,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
 
 // Transforms a string to lowercase, not using locales
 static void str_lcase(char *str)
