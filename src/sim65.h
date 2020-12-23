@@ -191,7 +191,7 @@ int sim65_lbl_load(sim65 s, const char *lblname);
 void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl);
 
 /// Returns number of cycles executed
-unsigned long sim65_get_cycles(const sim65 s);
+uint64_t sim65_get_cycles(const sim65 s);
 
 /// Activate instruction profiling.
 void sim65_set_profiling(sim65 s, int set);
