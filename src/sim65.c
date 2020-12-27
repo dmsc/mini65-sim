@@ -52,7 +52,7 @@ struct sim65s
     FILE *trace_file;
     unsigned err_addr;
     uint64_t cycles;
-    uint64_t cycle_limit;
+    volatile uint64_t cycle_limit;
     unsigned do_prof;
     struct sim65_reg r;
     uint8_t p_valid;

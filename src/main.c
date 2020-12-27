@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <getopt.h>
+#include <signal.h>
 
 static char *prog_name;
 static FILE *trace_file;
@@ -116,6 +117,13 @@ static void set_trace_file(const char *fname, sim65 s)
     sim65_set_trace_file(s, trace_file);
 }
 
+static sim65 handle_sigint_s;
+static void handle_sigint(int sig)
+{
+    // Set's cycle limit
+    sim65_set_cycle_limit(handle_sigint_s, 1);
+}
+
 int main(int argc, char **argv)
 {
     sim65 s;
@@ -183,6 +191,12 @@ int main(int argc, char **argv)
     if (profname)
         sim65_set_profiling(s, 1);
 
+    // Adds a signal handler for CONTROL-C, so we exit from the
+    // simulator cleanly
+    handle_sigint_s = s;
+    if( SIG_ERR == signal(SIGINT, handle_sigint) )
+        sim65_dprintf(s, "Error setting signal handler.");
+
     // Read and execute file
     enum sim65_error e;
     if (rom)
@@ -198,7 +212,9 @@ int main(int argc, char **argv)
             exit_error("error reading binary file");
     }
     // start
-    if (e)
+    if (e == sim65_err_cycle_limit)
+        sim65_eprintf(s, "stopped at address $%04x.", sim65_error_addr(s));
+    else if (e)
         // Prints error message
         sim65_eprintf(s, "simulator returned %s at address %04x.",
                       sim65_error_str(s, e), sim65_error_addr(s));
