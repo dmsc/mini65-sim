@@ -83,108 +83,54 @@ enum scr_command {
     scr_cmd_fillto
 };
 
-static void sys_screen(enum scr_command cmd, int x, int y, int data, struct sim65_reg *r)
+static void sys_screen(sim65 s, enum scr_command cmd, int x, int y, int data,
+                       struct sim65_reg *r)
 {
     static int sx = 40, sy = 24, numc = 256;
     static uint8_t scr[320*200]; // Simulated screen
+    static const int gr_sx[] = { 40, 20, 20, 40, 80, 80, 160, 160,
+                                320, 80, 80, 80, 40, 40, 160, 160 };
+    static const int gr_sy[] = { 24,  24,  12,  24, 48, 48,  96,  96,
+                                192, 192, 192, 192, 24, 12, 192, 192 };
+    static const int gr_numc[] = { 256, 256, 256,  4,   2,   4, 2, 4,
+                                     2,  16,  16, 16, 256, 256, 2, 4 };
 
     switch (cmd)
     {
         case scr_cmd_graphics:
+            sim65_dprintf(s, "SCREEN: open mode %d", 0x10 ^ data);
             atari_printf("SCREEN: set graphics %d%s%s\n", data & 15,
                          data & 16 ? " with text window": "",
                          data & 32 ? " don't clear" : "" );
             if (0 == (data & 32))
                 memset(scr, 0, 320*200);
-            switch (data & 15)
-            {
-                case 0:
-                case 12:
-                    sx = 40;
-                    sy = 24;
-                    numc = 256;
-                    break;
-                case 1:
-                    sx = 20;
-                    sy = 24;
-                    numc = 256;
-                    break;
-                case 2:
-                    sx = 20;
-                    sy = 12;
-                    numc = 256;
-                    break;
-                case 3:
-                    sx = 40;
-                    sy = 24;
-                    numc = 4;
-                    break;
-                case 4:
-                    sx = 80;
-                    sy = 48;
-                    numc = 2;
-                    break;
-                case 5:
-                    sx = 80;
-                    sy = 48;
-                    numc = 4;
-                    break;
-                case 6:
-                    sx = 160;
-                    sy = 96;
-                    numc = 2;
-                    break;
-                case 7:
-                    sx = 160;
-                    sy = 96;
-                    numc = 4;
-                    break;
-                case 8:
-                    sx = 320;
-                    sy = 192;
-                    numc = 2;
-                    break;
-                case 9:
-                case 10:
-                case 11:
-                    sx = 80;
-                    sy = 192;
-                    numc = 16;
-                    break;
-                case 13:
-                    sx = 40;
-                    sy = 12;
-                    numc = 256;
-                    break;
-                case 14:
-                    sx = 160;
-                    sy = 192;
-                    numc = 2;
-                    break;
-                case 15:
-                    sx = 160;
-                    sy = 192;
-                    numc = 4;
-                    break;
-            }
+            sx   = gr_sx[data & 15];
+            sy   = gr_sy[data & 15];
+            numc = gr_numc[data & 15];
             r->y = 0;
             return;
         case scr_cmd_locate:
+            sim65_dprintf(s, "SCREEN: get (locate) @(%d, %d)", x, y);
             atari_printf("SCREEN: locate %d,%d\n", x, y);
             if ( x >= 0 && x < sx && y >= 0 && y < sx )
                 r->a = scr[y * 320 + x];
             break;
         case scr_cmd_plot:
+            sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, data);
             atari_printf("SCREEN: plot %d,%d  color %d\n", x, y, data % numc);
             if ( x >= 0 && x < sx && y >= 0 && y < sx )
                 scr[y * 320 + x] = data % numc;
             break;
         case scr_cmd_drawto:
             // TODO: emulate line draw
+            data &= 0xFF;
+            sim65_dprintf(s, "SCREEN: special (drawto) @(%d, %d) color: %d", x, y, data);
             atari_printf("SCREEN: draw to %d,%d  color %d\n", x, y, data % numc);
             break;
         case scr_cmd_fillto:
             // TODO: emulate line fill
+            sim65_dprintf(s, "SCREEN: special (fillto) @(%d, %d) color: %d  fcolor:%d",
+                          x, y, data & 0xFF, data >> 8);
             atari_printf("SCREEN: fill to %d,%d  color %d, fill color %d\n",
                     x, y, (data & 0xFF) % numc, (data >>8) % numc );
             break;
@@ -239,6 +185,7 @@ static void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callbac
 // SCREEN defs
 #define ATACHR (0x2FB)
 #define FILDAT (0x2FD)
+#define FILFLG (0x2B7)
 
 #define LO(a) ((a)&0xFF)
 #define HI(a) ((a) >> 8)
@@ -629,42 +576,60 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     }
 }
 
+static int sim_screen_opn(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    sys_screen(s, scr_cmd_graphics, 0, 0, regs->a, regs);
+    return 0;
+}
+
+static int sim_screen_plt(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    sys_screen(s, scr_cmd_plot, dpeek(s, COLCRS), peek(s, ROWCRS), peek(s, ATACHR), regs);
+    return 0;
+}
+
+static int sim_screen_drw(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    sys_screen(s, peek(s, FILFLG) ? scr_cmd_fillto : scr_cmd_drawto,
+               dpeek(s, COLCRS), peek(s, ROWCRS),
+               peek(s, ATACHR) | (peek(s, FILDAT)<<8), regs);
+    return 0;
+}
+
+static int sim_screen_lct(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    sys_screen(s, scr_cmd_locate, dpeek(s, COLCRS), peek(s, ROWCRS), 0, regs);
+    return 0;
+}
+
 static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // We need IOCB data
     unsigned cmd  = GET_IC(COM);
-    unsigned ax1  = GET_IC(AX1);
-    unsigned ax2  = GET_IC(AX2);
-    int x = dpeek(s, COLCRS);
-    int y = peek(s, ROWCRS);
     switch (addr & 7)
     {
         case DEVR_OPEN:
-            sim65_dprintf(s, "SCREEN: open mode %d", 0x10 ^ ((ax1 & 0xF0) | (ax2 & 0x0F)));
-            sys_screen(scr_cmd_graphics, x, y, (ax2 & 0x0F) | (ax1 & 0xF0), regs);
-            return 0;
+            regs->a = (GET_IC(AX2) & 0x0F) | (GET_IC(AX1) & 0xF0);
+            return sim_screen_opn(s, regs, addr, data);
         case DEVR_CLOSE:
             sim65_dprintf(s, "SCREEN: close");
             return 0; // OK
         case DEVR_GET:
-            sim65_dprintf(s, "SCREEN: get (locate) @(%d, %d)", x, y);
-            sys_screen(scr_cmd_locate, x, y, 0, regs);
-            return 0;
+            return sim_screen_lct(s, regs, addr, data);
         case DEVR_PUT:
-            sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, regs->a, regs);
-            sys_screen(scr_cmd_plot, x, y, regs->a, regs);
-            return 0;
+            poke(s, ATACHR, regs->a);
+            return sim_screen_plt(s, regs, addr, data);
         case DEVR_STATUS:
-            sim65_dprintf(s, "SCREN cmd STATUS");
+            sim65_dprintf(s, "SCREEN: cmd STATUS");
             return 0;
         case DEVR_SPECIAL:
-            sim65_dprintf(s, "SCREEN: special (%s) @(%d, %d) color: %d  fcolor:%d",
-                          cmd == 17 ? "drawto" : cmd == 18 ? "fillto" : "unknown",
-                          x, y, peek(s, ATACHR), peek(s, FILDAT));
-            if (cmd == 17)
-                sys_screen(scr_cmd_drawto, x, y, peek(s, ATACHR), regs);
-            else if (cmd == 18)
-                sys_screen(scr_cmd_fillto, x, y, peek(s, ATACHR) | (peek(s, FILDAT)<<8), regs);
+            if (cmd == 17 || cmd == 18)
+            {
+                poke(s, FILFLG, (cmd == 18));
+                return sim_screen_drw(s, regs, addr, data);
+            }
+            else
+                sim65_dprintf(s, "SCREEN: special (unknown=%d)", cmd);
             return 0;
         case DEVR_INIT:
             return 0;
@@ -994,6 +959,11 @@ static void atari_bios_init(sim65 s)
     add_rts_callback(s, CASET_BASE, 8, sim_CASET);
     add_rts_callback(s, DISKD_BASE, 8, sim_DISKD);
     add_rts_callback(s, CIOERR, 1, sim_CIOERR);
+    // Simulate direct calls to XL OS ROM
+    add_rts_callback(s, 0xEF9C, 1, sim_screen_opn);
+    add_rts_callback(s, 0xF18F, 1, sim_screen_lct);
+    add_rts_callback(s, 0xF1D8, 1, sim_screen_plt);
+    add_rts_callback(s, 0xF9C2, 1, sim_screen_drw);
     // Math Package
     fp_init(s);
     // Simulate keyboard character "CH"
