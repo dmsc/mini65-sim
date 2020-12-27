@@ -216,7 +216,7 @@ int main(int argc, char **argv)
         sim65_eprintf(s, "stopped at address $%04x.", sim65_error_addr(s));
     else if (e)
         // Prints error message
-        sim65_eprintf(s, "simulator returned %s at address %04x.",
+        sim65_eprintf(s, "%s at address $%04x.",
                       sim65_error_str(s, e), sim65_error_addr(s));
     sim65_dprintf(s, "Total cycles: %ld", sim65_get_cycles(s));
     if (profname)
