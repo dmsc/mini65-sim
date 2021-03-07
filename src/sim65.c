@@ -114,6 +114,8 @@ static int get_error_exit(sim65 s)
         return s->error;
 }
 
+void set_error(sim65 s, int e, uint16_t addr);
+
 static char *get_label(sim65 s, uint16_t addr)
 {
     if (s->labels)
@@ -131,8 +133,11 @@ static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 static uint8_t get_flags(sim65 s, uint8_t mask)
 {
     if( 0 != (s->p_valid & mask) )
-        sim65_eprintf(s, "using uninitialized flags ($%02X) at PC=$%4X",
+    {
+        set_error(s, sim65_err_exec_uninit, s->r.pc);
+        sim65_dprintf(s, "using uninitialized flags ($%02X) at PC=$%4X",
                       s->p_valid & mask, s->r.pc);
+    }
     return s->r.p & mask;
 }
 
