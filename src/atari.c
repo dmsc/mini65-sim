@@ -527,7 +527,8 @@ static int sim_CIOERR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
-static uint8_t editr_last_row = 0;
+static unsigned editr_last_row = 0;
+static unsigned editr_last_col = 0;
 static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     switch (addr & 7)
@@ -548,20 +549,32 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return 0;
         }
         case DEVR_PUT:
-            // Keeps column number updated
-            dpoke(s, COLCRS, dpeek(s, COLCRS) + 1);
-            if (regs->a == 0x9B)
+        {
+            unsigned row = peek(s, ROWCRS);
+            unsigned col = dpeek(s, COLCRS);
+            // Detect POS changes
+            if (row != editr_last_row || col != editr_last_col)
             {
-                dpoke(s, COLCRS, peek(s, LMARGN));
-                if (peek(s, ROWCRS) < 24)
-                    poke(s, ROWCRS, peek(s, ROWCRS) + 1);
+                if (row != editr_last_row)
+                    atari_put_char(0x9B);
+                sim65_dprintf(s, "EDITR position from (%d,%d) to (%d,%d)",
+                              editr_last_row, editr_last_col, row, col);
             }
-            else if (peek(s, ROWCRS) != editr_last_row)
-                atari_put_char(0x9B);
-            editr_last_row = peek(s, ROWCRS);
+            if (regs->a == 0x9B || col == dpeek(s, RMARGN))
+            {
+                col = peek(s, LMARGN) - 1;
+                if( row < 24 )
+                    row ++;
+            }
             atari_put_char(regs->a);
+            col ++;
+            dpoke(s, COLCRS, col);
+            poke(s, ROWCRS, row);
+            editr_last_row = row;
+            editr_last_col = col;
             regs->y = 1;
             return 0;
+        }
         case DEVR_STATUS:
             sim65_dprintf(s, "EDITR cmd STATUS");
             return 0;
