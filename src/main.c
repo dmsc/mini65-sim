@@ -69,8 +69,8 @@ static void store_prof(const char *fname, sim65 s)
     struct sim65_profile pdata = sim65_get_profile_info(s);
     uint64_t max_count = 1000;
     for (unsigned i=0; i<65536; i++)
-        if (pdata.exe_count[i] > max_count)
-            max_count = pdata.exe_count[i];
+        if (pdata.cycle_count[i] > max_count)
+            max_count = pdata.cycle_count[i];
     int digits = 0;
     while( max_count )
     {
@@ -79,15 +79,15 @@ static void store_prof(const char *fname, sim65 s)
     }
     char buf[256];
     for (unsigned i=0; i<65536; i++)
-        if (pdata.exe_count[i])
+        if (pdata.cycle_count[i])
         {
-            fprintf(f, "%*" PRIu64 " %04X %s", digits, pdata.exe_count[i], i,
+            fprintf(f, "%*" PRIu64 " %04X %s", digits, pdata.cycle_count[i], i,
                     sim65_disassemble(s, buf, i));
             if (pdata.branch_taken[i])
             {
                 // Calculate number of cycles spent on taken branches:
                 uint64_t cyc = pdata.branch_taken[i] * 3 + pdata.extra_cycles[i];
-                if (pdata.exe_count[i] == cyc)
+                if (pdata.cycle_count[i] == cyc)
                     fprintf(f, " (always taken");
                 else
                     fprintf(f, " (%" PRIu64 " times taken", pdata.branch_taken[i]);

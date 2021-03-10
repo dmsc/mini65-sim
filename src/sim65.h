@@ -59,8 +59,8 @@ enum sim65_error_lvl {
 
 /// Structure with profile information
 struct sim65_profile {
-    /// Array with count of executed instructions at each address, from 0 to 65535.
-    const uint64_t *exe_count;
+    /// Array with count of cycles executing instructions at each address, from 0 to 65535.
+    const uint64_t *cycle_count;
     /// Array with count of taken branches from each address, from 0 to 65535.
     const uint64_t *branch_taken;
     /// Array with count of extra cycles incurred because branch or indexed access

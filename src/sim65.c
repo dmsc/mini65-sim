@@ -63,7 +63,7 @@ struct sim65s
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
     struct {
-        uint64_t exe[MAXRAM];   // Times this instruction was executed
+        uint64_t cycles[MAXRAM];// Total number of cycles executing this instruction
         uint64_t branch[MAXRAM];// Times this branch was taken
         uint64_t extra[MAXRAM]; // Number of extra cycles for crossing pages
         uint64_t branch_skip;   // Number of branches skipped
@@ -861,7 +861,7 @@ static void next(sim65 s)
     if (s->do_prof)
     {
         s->prof.instructions ++;
-        s->prof.exe[old_pc & 0xFFFF] += s->cycles -old_cycles;
+        s->prof.cycles[old_pc & 0xFFFF] += s->cycles -old_cycles;
     }
 }
 
@@ -1597,7 +1597,7 @@ uint64_t sim65_get_cycles(const sim65 s)
 struct sim65_profile sim65_get_profile_info(const sim65 s)
 {
     struct sim65_profile r;
-    r.exe_count = s->prof.exe;
+    r.cycle_count = s->prof.cycles;
     r.branch_taken = s->prof.branch;
     r.extra_cycles = s->prof.extra;
     r.total.branch_skip = s->prof.branch_skip;
@@ -1623,7 +1623,7 @@ int sim65_save_profile_data(const sim65 s, const char *fname)
     }
     e = fprintf(f, "SIM65:PROF:1\n") < 0;
     e |= fwrite(&ver, sizeof(ver), 1, f) < 1;
-    e |= fwrite(&s->prof.exe[0],       sizeof(s->prof.exe[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
@@ -1670,7 +1670,7 @@ int sim65_load_profile_data(sim65 s, const char *fname)
         sim65_eprintf(s, "invalid profile data file version %04x", ver);
         return 1;
     }
-    e |= fread(&s->prof.exe[0],       sizeof(s->prof.exe[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
