@@ -200,6 +200,14 @@ void sim65_set_profiling(const sim65 s, int set);
 /// @returns a sim65_profile struct with the profile data.
 struct sim65_profile sim65_get_profile_info(const sim65 s);
 
+/// Store profile data into a file.
+/// @returns 0 if no error.
+int sim65_save_profile_data(const sim65 s, const char *fname);
+
+/// Read profile data from a file.
+/// @returns 0 if no error.
+int sim65_load_profile_data(sim65 s, const char *fname);
+
 /// Returns name of label in given location, or null pointer if not found
 const char *sim65_get_label(const sim65 s, uint16_t addr);
 

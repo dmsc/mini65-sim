@@ -38,7 +38,9 @@ static void print_help(void)
                     " -t <file>: Store simulation trace into file\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n"
-                    " -p <file>: Store profile information into file\n",
+                    " -p <file>: Store profile information into file\n"
+                    " -P <file>: Read/write binary profile data to file, use to consolidate\n"
+                    "            more than one profile run\n",
             prog_name);
 }
 
@@ -129,14 +131,14 @@ int main(int argc, char **argv)
     sim65 s;
     int opt;
     unsigned rom = 0;
-    const char *lblname = 0, *profname = 0;
+    const char *lblname = 0, *profname = 0, *profdata = 0;
 
     prog_name = argv[0];
     s = sim65_new();
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "t:dhr:l:e:p:")) != -1)
+    while ((opt = getopt(argc, argv, "t:dhr:l:e:p:P:")) != -1)
     {
         switch (opt)
         {
@@ -169,6 +171,9 @@ int main(int argc, char **argv)
             case 'p': // profile
                 profname = optarg;
                 break;
+            case 'P': // profile data
+                profdata = optarg;
+                break;
             default:
                 print_error(0);
         }
@@ -188,8 +193,14 @@ int main(int argc, char **argv)
     atari_init(s, lblname != 0, 0, 0);
 
     // Set profile info
-    if (profname)
+    if (profname || profdata)
         sim65_set_profiling(s, 1);
+
+    if (profdata)
+    {
+        if (sim65_load_profile_data(s, profdata))
+            return 1;
+    }
 
     // Adds a signal handler for CONTROL-C, so we exit from the
     // simulator cleanly
@@ -219,6 +230,9 @@ int main(int argc, char **argv)
         sim65_eprintf(s, "%s at address $%04x.",
                       sim65_error_str(s, e), sim65_error_addr(s));
     sim65_dprintf(s, "Total cycles: %ld", sim65_get_cycles(s));
+
+    if (profdata)
+        sim65_save_profile_data(s, profdata);
     if (profname)
         store_prof(profname, s);
     sim65_free(s);

@@ -16,6 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "sim65.h"
+#include <errno.h>
 #include <inttypes.h>
 #include <likely.h>
 #include <stdarg.h>
@@ -1589,6 +1590,81 @@ struct sim65_profile sim65_get_profile_info(const sim65 s)
     r.total.extra_abs_y = s->prof.abs_y_extra;
     r.total.extra_ind_y = s->prof.ind_y_extra;
     return r;
+}
+
+int sim65_save_profile_data(const sim65 s, const char *fname)
+{
+    FILE *f = fopen(fname, "wb");
+    int e = 0;
+    uint16_t ver = 0x100;
+    if( !f )
+    {
+        sim65_eprintf(s, "can't save profile data", strerror(errno));
+        return 1;
+    }
+    e = fprintf(f, "SIM65:PROF:1\n") < 0;
+    e |= fwrite(&ver, sizeof(ver), 1, f) < 1;
+    e |= fwrite(&s->prof.exe[0],       sizeof(s->prof.exe[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
+    e |= fwrite(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
+    e |= fwrite(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.abs_x_extra,  sizeof(s->prof.abs_x_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.abs_y_extra,  sizeof(s->prof.abs_y_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.ind_y_extra,  sizeof(s->prof.ind_y_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.instructions, sizeof(s->prof.instructions), 1, f) < 1;
+    e |= fclose(f) != 0;
+    if( e )
+    {
+        sim65_eprintf(s, "can't save profile data", strerror(errno));
+        return 1;
+    }
+    return 0;
+}
+
+int sim65_load_profile_data(sim65 s, const char *fname)
+{
+    int e = 0;
+    uint16_t ver = 0;
+    FILE *f = fopen(fname, "rb");
+    if( !f )
+    {
+        if( errno == ENOENT )
+        {
+            sim65_dprintf(s, "missing profile data");
+            return 0;
+        }
+        sim65_eprintf(s, "can't load profile data", strerror(errno));
+        return 1;
+    }
+    char buf[32];
+    if( !fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:1\n") )
+    {
+        fclose(f);
+        sim65_eprintf(s, "not a profile data file");
+        return 1;
+    }
+    if( fread(&ver, sizeof(ver), 1, f) < 1 || ver != 0x100 )
+    {
+        fclose(f);
+        sim65_eprintf(s, "invalid profile data file version %04x", ver);
+        return 1;
+    }
+    e |= fread(&s->prof.exe[0],       sizeof(s->prof.exe[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
+    e |= fread(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
+    e |= fread(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
+    e |= fread(&s->prof.abs_x_extra,  sizeof(s->prof.abs_x_extra), 1, f) < 1;
+    e |= fread(&s->prof.abs_y_extra,  sizeof(s->prof.abs_y_extra), 1, f) < 1;
+    e |= fread(&s->prof.ind_y_extra,  sizeof(s->prof.ind_y_extra), 1, f) < 1;
+    e |= fread(&s->prof.instructions, sizeof(s->prof.instructions), 1, f) < 1;
+    if( e )
+        sim65_eprintf(s, "can't read profile data", strerror(errno));
+    fclose(f);
+    return e;
 }
 
 void sim65_set_profiling(const sim65 s, int set)
