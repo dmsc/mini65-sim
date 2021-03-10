@@ -1456,6 +1456,25 @@ char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr)
     return buf;
 }
 
+int sim65_ins_is_branch(const sim65 s, uint16_t addr)
+{
+    unsigned ins = s->mem[addr & 0xFFFF];
+    switch (ins)
+    {
+        case 0x10:
+        case 0x30:
+        case 0x50:
+        case 0x70:
+        case 0x90:
+        case 0xB0:
+        case 0xD0:
+        case 0xF0:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 int sim65_dprintf(sim65 s, const char *format, ...)
 {
     char buf[1024];

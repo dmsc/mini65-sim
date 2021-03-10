@@ -84,8 +84,17 @@ static void store_prof(const char *fname, sim65 s)
             fprintf(f, "%*" PRIu64 " %04X %s", digits, pdata.exe_count[i], i,
                     sim65_disassemble(s, buf, i));
             if (pdata.branch_taken[i])
-                fprintf(f, " (%" PRIu64 " times taken%s)", pdata.branch_taken[i],
-                        pdata.extra_cycles[i] ? ", crosses page" : "");
+            {
+                // Calculate number of cycles spent on taken branches:
+                uint64_t cyc = pdata.branch_taken[i] * 3 + pdata.extra_cycles[i];
+                if (pdata.exe_count[i] == cyc)
+                    fprintf(f, " (always taken");
+                else
+                    fprintf(f, " (%" PRIu64 " times taken", pdata.branch_taken[i]);
+                fprintf(f, "%s", pdata.extra_cycles[i] ? ", crosses page)" : ")");
+            }
+            else if(sim65_ins_is_branch(s, i))
+                fprintf(f, " (never taken)");
             else if(pdata.extra_cycles[i])
                 fprintf(f, " (%" PRIu64 " times crossed pages)", pdata.extra_cycles[i]);
             fputc('\n', f);
