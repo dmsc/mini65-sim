@@ -414,6 +414,43 @@ static void writeIndY(sim65 s, unsigned addr, unsigned val)
 #define GETC    get_flags(s, FLAG_C)
 #define GETD    get_flags(s, FLAG_D)
 
+// Checks if LDA/LDX/LDY actually modify registers+flags
+static void check_lda(sim65 s, uint8_t val, uint16_t old_pc, uint64_t old_cycles)
+{
+    if (s->do_prof && val == s->r.a)
+    {
+        // Check if we are modifying flags:
+        unsigned zf = (val == 0) ? FLAG_Z : 0;
+        unsigned nf = (val & 0x80) ? FLAG_N : 0;
+        if ((s->r.p & FLAG_Z) == zf && (s->r.p & FLAG_N) == nf)
+            s->prof.mflag[old_pc] += s->cycles - old_cycles;
+    }
+}
+
+static void check_ldx(sim65 s, uint8_t val, uint16_t old_pc, uint64_t old_cycles)
+{
+    if (s->do_prof && val == s->r.x)
+    {
+        // Check if we are modifying flags:
+        unsigned zf = (val == 0) ? FLAG_Z : 0;
+        unsigned nf = (val & 0x80) ? FLAG_N : 0;
+        if ((s->r.p & FLAG_Z) == zf && (s->r.p & FLAG_N) == nf)
+            s->prof.mflag[old_pc] += s->cycles - old_cycles;
+    }
+}
+
+static void check_ldy(sim65 s, uint8_t val, uint16_t old_pc, uint64_t old_cycles)
+{
+    if (s->do_prof && val == s->r.y)
+    {
+        // Check if we are modifying flags:
+        unsigned zf = (val == 0) ? FLAG_Z : 0;
+        unsigned nf = (val & 0x80) ? FLAG_N : 0;
+        if ((s->r.p & FLAG_Z) == zf && (s->r.p & FLAG_N) == nf)
+            s->prof.mflag[old_pc] += s->cycles - old_cycles;
+    }
+}
+
 // Implements ADC instruction, adding the accumulator with the given value.
 static void do_adc(sim65 s, unsigned val)
 {
@@ -557,9 +594,9 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define INDW_X(op) op; writeIndX(s, data, val)
 #define INDW_Y(op) op; writeIndY(s, data, val)
 
-#define ORA s->r.a |= val; SETZ(s->r.a); SETN(s->r.a)
-#define AND s->r.a &= val; SETZ(s->r.a); SETN(s->r.a)
-#define EOR s->r.a ^= val; SETZ(s->r.a); SETN(s->r.a)
+#define ORA check_lda(s, val, old_pc, old_cycles); s->r.a |= val; SETZ(s->r.a); SETN(s->r.a)
+#define AND check_lda(s, val, old_pc, old_cycles); s->r.a &= val; SETZ(s->r.a); SETN(s->r.a)
+#define EOR check_lda(s, val, old_pc, old_cycles); s->r.a ^= val; SETZ(s->r.a); SETN(s->r.a)
 #define ADC do_adc(s, val)
 #define SBC do_sbc(s, val)
 #define ASL SETC(val & 0x80); val = (val << 1) & 0xFF; SETZ(val); SETN(val)
@@ -574,9 +611,9 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define CPX val = (s->r.x + 0x100 - val); SET_ZN; SETC(val > 0xFF)
 #define CPY val = (s->r.y + 0x100 - val); SET_ZN; SETC(val > 0xFF)
 
-#define LDA SET_ZN; s->r.a = val
-#define LDX SET_ZN; s->r.x = val
-#define LDY SET_ZN; s->r.y = val
+#define LDA check_lda(s, val, old_pc, old_cycles); SET_ZN; s->r.a = val
+#define LDX check_ldx(s, val, old_pc, old_cycles); SET_ZN; s->r.x = val
+#define LDY check_ldy(s, val, old_pc, old_cycles); SET_ZN; s->r.y = val
 #define STA val = s->r.a
 #define STX val = s->r.x
 #define STY val = s->r.y
