@@ -66,6 +66,7 @@ struct sim65s
         uint64_t cycles[MAXRAM];// Total number of cycles executing this instruction
         uint64_t branch[MAXRAM];// Times this branch was taken
         uint64_t extra[MAXRAM]; // Number of extra cycles for crossing pages
+        uint64_t mflag[MAXRAM]; // Number of times this ins actually modifies flags
         uint64_t branch_skip;   // Number of branches skipped
         uint64_t branch_taken;  // Number of branches taken
         uint64_t branch_extra;  // Extra cycles per branch to other page
@@ -129,6 +130,15 @@ static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 {
     s->r.p = (s->r.p & ~mask) | val;
     s->p_valid &= ~mask;
+}
+
+// Simulates CL* and SE* instructions
+static void ins_flags(sim65 s, uint8_t mask, uint8_t val)
+{
+    s->cycles += 2;
+    if (s->do_prof && val == (s->r.p & mask))
+        s->prof.mflag[(s->r.pc-1) & 0xFFFF] += 2;
+    return set_flags(s, mask, val);
 }
 
 static uint8_t get_flags(sim65 s, uint8_t mask)
@@ -610,8 +620,8 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define RTS()      do_rts(s)
 #define RTI()      do_rti(s)
 
-#define CL_F(f)   s->cycles += 2; set_flags(s, f, 0)
-#define SE_F(f)   s->cycles += 2; set_flags(s, f, f)
+#define CL_F(f)   ins_flags(s, f, 0)
+#define SE_F(f)   ins_flags(s, f, f)
 
 #define POP_P  s->cycles += 4; POP; set_flags(s, 0xFF, val | 0x30)
 #define POP_A  s->cycles += 4; POP; LDA
@@ -1600,6 +1610,7 @@ struct sim65_profile sim65_get_profile_info(const sim65 s)
     r.cycle_count = s->prof.cycles;
     r.branch_taken = s->prof.branch;
     r.extra_cycles = s->prof.extra;
+    r.flag_change = s->prof.mflag;
     r.total.branch_skip = s->prof.branch_skip;
     r.total.branch_taken = s->prof.branch_taken;
     r.total.branch_extra = s->prof.branch_extra;
@@ -1621,11 +1632,12 @@ int sim65_save_profile_data(const sim65 s, const char *fname)
         sim65_eprintf(s, "can't save profile data", strerror(errno));
         return 1;
     }
-    e = fprintf(f, "SIM65:PROF:1\n") < 0;
+    e = fprintf(f, "SIM65:PROF:2\n") < 0;
     e |= fwrite(&ver, sizeof(ver), 1, f) < 1;
     e |= fwrite(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.mflag[0],     sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
     e |= fwrite(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
     e |= fwrite(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
@@ -1658,7 +1670,7 @@ int sim65_load_profile_data(sim65 s, const char *fname)
         return 1;
     }
     char buf[32];
-    if( !fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:1\n") )
+    if( !fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:2\n") )
     {
         fclose(f);
         sim65_eprintf(s, "not a profile data file");
@@ -1673,6 +1685,7 @@ int sim65_load_profile_data(sim65 s, const char *fname)
     e |= fread(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.mflag[0],     sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
     e |= fread(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
     e |= fread(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
