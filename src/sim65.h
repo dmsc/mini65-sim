@@ -66,6 +66,9 @@ struct sim65_profile {
     /// Array with count of extra cycles incurred because branch or indexed access
     /// crossed a page.
     const uint64_t *extra_cycles;
+    /// Array with the number of times this instruction does not change the flags on execution
+    /// This is used to detect unneeded flag setting instructions.
+    const uint64_t *flag_change;
     struct {
         /// Total number of cycles
         uint64_t cycles;

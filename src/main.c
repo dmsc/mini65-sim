@@ -97,6 +97,8 @@ static void store_prof(const char *fname, sim65 s)
                 fprintf(f, " (never taken)");
             else if(pdata.extra_cycles[i])
                 fprintf(f, " (%" PRIu64 " times crossed pages)", pdata.extra_cycles[i]);
+            if (pdata.cycle_count[i] <= pdata.flag_change[i])
+                fprintf(f, " (no useful work)");
             fputc('\n', f);
         }
     // Summary at end

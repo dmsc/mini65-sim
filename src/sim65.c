@@ -66,6 +66,7 @@ struct sim65s
         uint64_t cycles[MAXRAM];// Total number of cycles executing this instruction
         uint64_t branch[MAXRAM];// Times this branch was taken
         uint64_t extra[MAXRAM]; // Number of extra cycles for crossing pages
+        uint64_t mflag[MAXRAM]; // Number of times this ins actually modifies flags
         uint64_t branch_skip;   // Number of branches skipped
         uint64_t branch_taken;  // Number of branches taken
         uint64_t branch_extra;  // Extra cycles per branch to other page
@@ -74,6 +75,7 @@ struct sim65s
         uint64_t ind_y_extra;   // Extra cycles per (),Y crossing page
         uint64_t instructions;  // Number of instructions
     } prof;
+    unsigned wmem;              // Used by the profiler to detect write to memory
     char *labels;
 };
 
@@ -298,14 +300,19 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
     {
         int e = s->cb_read[addr](s, &s->r, addr, sim65_cb_read);
         set_error(s, e, addr);
+        s->wmem = 1;
         return e;
     }
     else
     {
         if (s->mems[addr] & ms_undef)
+        {
+            s->wmem = 1;
             set_error(s, sim65_err_read_undef, addr);
+        }
         else if(s->mems[addr] & ms_invalid)
         {
+            s->wmem = 1;
             set_error(s, sim65_err_read_uninit, addr);
             s->mems[addr] &= ~ms_invalid; // Initializes the memory
         }
@@ -322,6 +329,16 @@ static inline uint8_t readByte(sim65 s, uint16_t addr)
 
 static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
 {
+    if( ! s->mems[addr] )
+    {
+        if (val != s->mem[addr])
+        {
+            s->wmem = 1;
+            s->mem[addr] = val;
+        }
+        return;
+    }
+    s->wmem = 1;
     if (likely(!(s->mems[addr] & ~ms_invalid)))
     {
         s->mem[addr] = val;
@@ -338,7 +355,7 @@ static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
 static inline void writeByte(sim65 s, uint16_t addr, uint8_t val)
 {
     // Slow write if memory have any flag (rom, undefined, invalid or a callback location):
-    if (likely(!(s->mems[addr])))
+    if (likely(!(s->mems[addr]) && !s->do_prof))
         s->mem[addr] = val;
     else
         writeByte_slow(s, addr, val);
@@ -665,8 +682,10 @@ static void do_rti(sim65 s)
 
 static void next(sim65 s)
 {
-    unsigned ins, data, val, old_pc = 0;
+    unsigned ins, data, val;
     uint64_t old_cycles = 0;
+    struct sim65_reg old_regs;
+
 
     // See if out vector
     if (s->cb_exec[s->r.pc])
@@ -696,8 +715,9 @@ static void next(sim65 s)
     // If profiling, store old info
     if (s->do_prof)
     {
-        old_pc = s->r.pc;
         old_cycles = s->cycles;
+        old_regs = s->r;
+        s->wmem = 0;
     }
     // Update PC
     s->r.pc += ilen[ins];
@@ -860,8 +880,16 @@ static void next(sim65 s)
     // Update profile information
     if (s->do_prof)
     {
+        unsigned cyc = s->cycles - old_cycles;
         s->prof.instructions ++;
-        s->prof.cycles[old_pc & 0xFFFF] += s->cycles -old_cycles;
+        s->prof.cycles[old_regs.pc & 0xFFFF] += cyc;
+        if ( s->r.a == old_regs.a && s->r.x == old_regs.x &&
+             s->r.y == old_regs.y && s->r.p == old_regs.p &&
+             s->r.s == old_regs.s && s->r.pc == old_regs.pc + ilen[ins] &&
+             !s->wmem)
+        {
+            s->prof.mflag[old_regs.pc] += cyc;
+        }
     }
 }
 
@@ -1600,6 +1628,7 @@ struct sim65_profile sim65_get_profile_info(const sim65 s)
     r.cycle_count = s->prof.cycles;
     r.branch_taken = s->prof.branch;
     r.extra_cycles = s->prof.extra;
+    r.flag_change = s->prof.mflag;
     r.total.branch_skip = s->prof.branch_skip;
     r.total.branch_taken = s->prof.branch_taken;
     r.total.branch_extra = s->prof.branch_extra;
@@ -1621,11 +1650,12 @@ int sim65_save_profile_data(const sim65 s, const char *fname)
         sim65_eprintf(s, "can't save profile data", strerror(errno));
         return 1;
     }
-    e = fprintf(f, "SIM65:PROF:1\n") < 0;
+    e = fprintf(f, "SIM65:PROF:2\n") < 0;
     e |= fwrite(&ver, sizeof(ver), 1, f) < 1;
     e |= fwrite(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.mflag[0],     sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
     e |= fwrite(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
     e |= fwrite(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
     e |= fwrite(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
@@ -1658,7 +1688,7 @@ int sim65_load_profile_data(sim65 s, const char *fname)
         return 1;
     }
     char buf[32];
-    if( !fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:1\n") )
+    if( !fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:2\n") )
     {
         fclose(f);
         sim65_eprintf(s, "not a profile data file");
@@ -1673,6 +1703,7 @@ int sim65_load_profile_data(sim65 s, const char *fname)
     e |= fread(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.mflag[0],     sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
     e |= fread(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
     e |= fread(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
     e |= fread(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
