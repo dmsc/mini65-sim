@@ -75,6 +75,7 @@ struct sim65s
         uint64_t ind_y_extra;   // Extra cycles per (),Y crossing page
         uint64_t instructions;  // Number of instructions
     } prof;
+    unsigned wmem;              // Used by the profiler to detect write to memory
     char *labels;
 };
 
@@ -130,15 +131,6 @@ static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 {
     s->r.p = (s->r.p & ~mask) | val;
     s->p_valid &= ~mask;
-}
-
-// Simulates CL* and SE* instructions
-static void ins_flags(sim65 s, uint8_t mask, uint8_t val)
-{
-    s->cycles += 2;
-    if (s->do_prof && val == (s->r.p & mask))
-        s->prof.mflag[(s->r.pc-1) & 0xFFFF] += 2;
-    return set_flags(s, mask, val);
 }
 
 static uint8_t get_flags(sim65 s, uint8_t mask)
@@ -308,14 +300,19 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
     {
         int e = s->cb_read[addr](s, &s->r, addr, sim65_cb_read);
         set_error(s, e, addr);
+        s->wmem = 1;
         return e;
     }
     else
     {
         if (s->mems[addr] & ms_undef)
+        {
+            s->wmem = 1;
             set_error(s, sim65_err_read_undef, addr);
+        }
         else if(s->mems[addr] & ms_invalid)
         {
+            s->wmem = 1;
             set_error(s, sim65_err_read_uninit, addr);
             s->mems[addr] &= ~ms_invalid; // Initializes the memory
         }
@@ -332,6 +329,16 @@ static inline uint8_t readByte(sim65 s, uint16_t addr)
 
 static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
 {
+    if( ! s->mems[addr] )
+    {
+        if (val != s->mem[addr])
+        {
+            s->wmem = 1;
+            s->mem[addr] = val;
+        }
+        return;
+    }
+    s->wmem = 1;
     if (likely(!(s->mems[addr] & ~ms_invalid)))
     {
         s->mem[addr] = val;
@@ -348,7 +355,7 @@ static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
 static inline void writeByte(sim65 s, uint16_t addr, uint8_t val)
 {
     // Slow write if memory have any flag (rom, undefined, invalid or a callback location):
-    if (likely(!(s->mems[addr])))
+    if (likely(!(s->mems[addr]) && !s->do_prof))
         s->mem[addr] = val;
     else
         writeByte_slow(s, addr, val);
@@ -413,43 +420,6 @@ static void writeIndY(sim65 s, unsigned addr, unsigned val)
 #define SETI(a) set_flags(s, FLAG_I,  (a) ? FLAG_I : 0)
 #define GETC    get_flags(s, FLAG_C)
 #define GETD    get_flags(s, FLAG_D)
-
-// Checks if LDA/LDX/LDY actually modify registers+flags
-static void check_lda(sim65 s, uint8_t val, uint16_t old_pc, uint64_t old_cycles)
-{
-    if (s->do_prof && val == s->r.a)
-    {
-        // Check if we are modifying flags:
-        unsigned zf = (val == 0) ? FLAG_Z : 0;
-        unsigned nf = (val & 0x80) ? FLAG_N : 0;
-        if ((s->r.p & FLAG_Z) == zf && (s->r.p & FLAG_N) == nf)
-            s->prof.mflag[old_pc] += s->cycles - old_cycles;
-    }
-}
-
-static void check_ldx(sim65 s, uint8_t val, uint16_t old_pc, uint64_t old_cycles)
-{
-    if (s->do_prof && val == s->r.x)
-    {
-        // Check if we are modifying flags:
-        unsigned zf = (val == 0) ? FLAG_Z : 0;
-        unsigned nf = (val & 0x80) ? FLAG_N : 0;
-        if ((s->r.p & FLAG_Z) == zf && (s->r.p & FLAG_N) == nf)
-            s->prof.mflag[old_pc] += s->cycles - old_cycles;
-    }
-}
-
-static void check_ldy(sim65 s, uint8_t val, uint16_t old_pc, uint64_t old_cycles)
-{
-    if (s->do_prof && val == s->r.y)
-    {
-        // Check if we are modifying flags:
-        unsigned zf = (val == 0) ? FLAG_Z : 0;
-        unsigned nf = (val & 0x80) ? FLAG_N : 0;
-        if ((s->r.p & FLAG_Z) == zf && (s->r.p & FLAG_N) == nf)
-            s->prof.mflag[old_pc] += s->cycles - old_cycles;
-    }
-}
 
 // Implements ADC instruction, adding the accumulator with the given value.
 static void do_adc(sim65 s, unsigned val)
@@ -594,9 +564,9 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define INDW_X(op) op; writeIndX(s, data, val)
 #define INDW_Y(op) op; writeIndY(s, data, val)
 
-#define ORA check_lda(s, val, old_pc, old_cycles); s->r.a |= val; SETZ(s->r.a); SETN(s->r.a)
-#define AND check_lda(s, val, old_pc, old_cycles); s->r.a &= val; SETZ(s->r.a); SETN(s->r.a)
-#define EOR check_lda(s, val, old_pc, old_cycles); s->r.a ^= val; SETZ(s->r.a); SETN(s->r.a)
+#define ORA s->r.a |= val; SETZ(s->r.a); SETN(s->r.a)
+#define AND s->r.a &= val; SETZ(s->r.a); SETN(s->r.a)
+#define EOR s->r.a ^= val; SETZ(s->r.a); SETN(s->r.a)
 #define ADC do_adc(s, val)
 #define SBC do_sbc(s, val)
 #define ASL SETC(val & 0x80); val = (val << 1) & 0xFF; SETZ(val); SETN(val)
@@ -611,9 +581,9 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define CPX val = (s->r.x + 0x100 - val); SET_ZN; SETC(val > 0xFF)
 #define CPY val = (s->r.y + 0x100 - val); SET_ZN; SETC(val > 0xFF)
 
-#define LDA check_lda(s, val, old_pc, old_cycles); SET_ZN; s->r.a = val
-#define LDX check_ldx(s, val, old_pc, old_cycles); SET_ZN; s->r.x = val
-#define LDY check_ldy(s, val, old_pc, old_cycles); SET_ZN; s->r.y = val
+#define LDA SET_ZN; s->r.a = val
+#define LDX SET_ZN; s->r.x = val
+#define LDY SET_ZN; s->r.y = val
 #define STA val = s->r.a
 #define STX val = s->r.x
 #define STY val = s->r.y
@@ -657,8 +627,8 @@ static void do_extra_absy(sim65 s, unsigned addr)
 #define RTS()      do_rts(s)
 #define RTI()      do_rti(s)
 
-#define CL_F(f)   ins_flags(s, f, 0)
-#define SE_F(f)   ins_flags(s, f, f)
+#define CL_F(f)   s->cycles += 2; set_flags(s, f, 0)
+#define SE_F(f)   s->cycles += 2; set_flags(s, f, f)
 
 #define POP_P  s->cycles += 4; POP; set_flags(s, 0xFF, val | 0x30)
 #define POP_A  s->cycles += 4; POP; LDA
@@ -712,8 +682,10 @@ static void do_rti(sim65 s)
 
 static void next(sim65 s)
 {
-    unsigned ins, data, val, old_pc = 0;
+    unsigned ins, data, val;
     uint64_t old_cycles = 0;
+    struct sim65_reg old_regs;
+
 
     // See if out vector
     if (s->cb_exec[s->r.pc])
@@ -743,8 +715,9 @@ static void next(sim65 s)
     // If profiling, store old info
     if (s->do_prof)
     {
-        old_pc = s->r.pc;
         old_cycles = s->cycles;
+        old_regs = s->r;
+        s->wmem = 0;
     }
     // Update PC
     s->r.pc += ilen[ins];
@@ -907,8 +880,16 @@ static void next(sim65 s)
     // Update profile information
     if (s->do_prof)
     {
+        unsigned cyc = s->cycles - old_cycles;
         s->prof.instructions ++;
-        s->prof.cycles[old_pc & 0xFFFF] += s->cycles -old_cycles;
+        s->prof.cycles[old_regs.pc & 0xFFFF] += cyc;
+        if ( s->r.a == old_regs.a && s->r.x == old_regs.x &&
+             s->r.y == old_regs.y && s->r.p == old_regs.p &&
+             s->r.s == old_regs.s && s->r.pc == old_regs.pc + ilen[ins] &&
+             !s->wmem)
+        {
+            s->prof.mflag[old_regs.pc] += cyc;
+        }
     }
 }
 
