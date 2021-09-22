@@ -34,6 +34,8 @@ static void print_help(void)
                     "Options:\n"
                     " -h: Show this help\n"
                     " -d: Print debug messages to standard error\n"
+                    " -b: Use binary for standard input and output, the default is to\n"
+                    "     translate ATASCII to ASCII and vice-versa\n"
                     " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
                     " -t <file>: Store simulation trace into file\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
@@ -130,6 +132,17 @@ static void set_trace_file(const char *fname, sim65 s)
     sim65_set_trace_file(s, trace_file);
 }
 
+// Raw put/get character, used on "untranslated" mode
+static int raw_get_char(void)
+{
+    return getchar();
+}
+
+static void raw_put_char(int c)
+{
+    putchar(c);
+}
+
 static sim65 handle_sigint_s;
 static void handle_sigint(int sig)
 {
@@ -142,6 +155,7 @@ int main(int argc, char **argv)
     sim65 s;
     int opt;
     unsigned rom = 0;
+    int raw_io = 0;
     const char *lblname = 0, *profname = 0, *profdata = 0;
 
     prog_name = argv[0];
@@ -149,7 +163,7 @@ int main(int argc, char **argv)
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "t:dhr:l:e:p:P:")) != -1)
+    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:")) != -1)
     {
         switch (opt)
         {
@@ -159,6 +173,9 @@ int main(int argc, char **argv)
                 break;
             case 'd': // debug
                 sim65_set_debug(s, sim65_debug_messages);
+                break;
+            case 'b': // binary/raw
+                raw_io = 1;
                 break;
             case 'e': // error level
                 if (!strcmp(optarg, "n") || !strcmp(optarg, "none"))
@@ -201,7 +218,10 @@ int main(int argc, char **argv)
         sim65_lbl_load(s, lblname);
 
     // Initialize Atari emu
-    atari_init(s, lblname != 0, 0, 0);
+    if( raw_io )
+        atari_init(s, lblname != 0, raw_get_char, raw_put_char);
+    else
+        atari_init(s, lblname != 0, 0, 0);
 
     // Set profile info
     if (profname || profdata)
