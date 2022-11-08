@@ -572,6 +572,10 @@ enum sim65_error atari_rom_load(sim65 s, int addr, const char *name)
     // Check if we have a standard Atari ROM
     if (saddr == 0xA000 && addr == 0xC000)
     {
+        // Fix MEMTOP and RAMTOP
+        dpoke(s, 0x2e5, saddr); // MEMTOP
+        poke(s, 0x6A, saddr/256); // RAMTOP
+
         uint16_t flag = dpeek(s, 0xBFFC);
         uint16_t rvec = dpeek(s, 0xBFFA);
         uint16_t ivec = dpeek(s, 0xBFFE);
