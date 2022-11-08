@@ -28,6 +28,7 @@ all: $(BDIR)/atarisim
 
 SRC=\
  src/atari.c\
+ src/atcio.c\
  src/dosfname.c\
  src/hw.c\
  src/main.c\
