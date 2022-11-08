@@ -94,9 +94,17 @@ static int sim_pia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_antic(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
+    static int vcount;
     // addr & 0x0F
     if (data == sim65_cb_read)
+    {
         sim65_dprintf(s, "ANTIC read $%04x", addr);
+        if( (addr & 0xFF) == 0x0B )
+        {
+            vcount = (vcount + 1) % 132;
+            return vcount;
+        }
+    }
     else
         sim65_dprintf(s, "ANTIC write $%04x <- $%02x", addr, data);
     return 0;
