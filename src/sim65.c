@@ -680,19 +680,16 @@ static void do_rti(sim65 s)
     s->cycles += 2;
 }
 
-static void next(sim65 s)
+static int next(sim65 s)
 {
     unsigned ins, data, val;
-    uint64_t old_cycles = 0;
-    struct sim65_reg old_regs;
-
 
     // See if out vector
     if (s->cb_exec[s->r.pc])
     {
         set_error(s, s->cb_exec[s->r.pc](s, &s->r, s->r.pc, sim65_cb_exec), s->r.pc);
         if (get_error_exit(s))
-            return;
+            return -1;
     }
 
     if (s->debug >= sim65_debug_trace)
@@ -701,7 +698,7 @@ static void next(sim65 s)
     if (s->cycle_limit && s->cycles >= s->cycle_limit)
     {
         set_error(s, sim65_err_cycle_limit, s->r.pc);
-        return;
+        return -1;
     }
 
     // Read instruction and data - always prefetched in real 6502 CPU
@@ -712,13 +709,6 @@ static void next(sim65 s)
     if (ilen[ins] > 2)
         data |= readByte(s, s->r.pc + 2) << 8;
 
-    // If profiling, store old info
-    if (s->do_prof)
-    {
-        old_cycles = s->cycles;
-        old_regs = s->r;
-        s->wmem = 0;
-    }
     // Update PC
     s->r.pc += ilen[ins];
 
@@ -877,20 +867,7 @@ static void next(sim65 s)
         case 0xfe:  ABX_RW(INC);            break;
         default:    set_error(s, sim65_err_invalid_ins, s->r.pc - 1);
     }
-    // Update profile information
-    if (s->do_prof)
-    {
-        unsigned cyc = s->cycles - old_cycles;
-        s->prof.instructions ++;
-        s->prof.cycles[old_regs.pc & 0xFFFF] += cyc;
-        if ( s->r.a == old_regs.a && s->r.x == old_regs.x &&
-             s->r.y == old_regs.y && s->r.p == old_regs.p &&
-             s->r.s == old_regs.s && s->r.pc == old_regs.pc + ilen[ins] &&
-             !s->wmem)
-        {
-            s->prof.mflag[old_regs.pc] += cyc;
-        }
-    }
+    return ins;
 }
 
 enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
@@ -900,8 +877,39 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
 
     s->error = sim65_err_none;
     s->r.pc = addr;
-    while (!get_error_exit(s))
-        next(s);
+
+    if (s->do_prof)
+    {
+        while (!get_error_exit(s))
+        {
+            // If profiling, store old info for each instruction
+            uint64_t old_cycles = 0;
+            struct sim65_reg old_regs;
+            old_cycles = s->cycles;
+            old_regs = s->r;
+            s->wmem = 0;
+
+            // Execute instruction
+            int ins = next(s);
+            if (ins < 1)
+                break;
+
+            // Update profile information
+            unsigned cyc = s->cycles - old_cycles;
+            s->prof.instructions ++;
+            s->prof.cycles[old_regs.pc & 0xFFFF] += cyc;
+            if ( s->r.a == old_regs.a && s->r.x == old_regs.x &&
+                    s->r.y == old_regs.y && s->r.p == old_regs.p &&
+                    s->r.s == old_regs.s && s->r.pc == old_regs.pc + ilen[ins] &&
+                    !s->wmem)
+            {
+                s->prof.mflag[old_regs.pc] += cyc;
+            }
+        }
+    }
+    else
+        while (!get_error_exit(s))
+            next(s);
 
     if (regs)
         memcpy(regs, &s->r, sizeof(*regs));
