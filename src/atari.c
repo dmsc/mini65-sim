@@ -54,6 +54,14 @@ static void sys_put_char(int c)
 
 
 // Utility functions
+void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb)
+{
+    unsigned char rts = 0x60;
+    sim65_add_callback_range(s, addr, len, cb, sim65_cb_exec);
+    for (; len > 0; addr++, len--)
+        sim65_add_data_rom(s, addr, &rts, 1);
+}
+
 static void poke(sim65 s, unsigned addr, unsigned char val)
 {
     sim65_add_data_ram(s, addr, &val, 1);

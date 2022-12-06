@@ -18,6 +18,7 @@
 
 /* Implements Atari CIO emulation */
 #include "atcio.h"
+#include "atari.h"
 #include "dosfname.h"
 #include <errno.h>
 #include <stdarg.h>
@@ -136,14 +137,6 @@ static unsigned peek(sim65 s, unsigned addr)
 static unsigned dpeek(sim65 s, unsigned addr)
 {
     return sim65_get_byte(s, addr) + (sim65_get_byte(s, addr + 1) << 8);
-}
-
-static void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb)
-{
-    unsigned char rts = 0x60;
-    sim65_add_callback_range(s, addr, len, cb, sim65_cb_exec);
-    for (; len > 0; addr++, len--)
-        sim65_add_data_rom(s, addr, &rts, 1);
 }
 
 // EDITOR defs
