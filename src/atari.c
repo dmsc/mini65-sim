@@ -17,6 +17,7 @@
  */
 #include "atari.h"
 #include "atcio.h"
+#include "atsio.h"
 #include "mathpack.h"
 #include "hw.h"
 #include <math.h>
@@ -371,8 +372,21 @@ static const struct
     { "DSPFLG",   0x02FE }, // DISPLAY FLAG   DISPLAY CNTLS IF NON-ZERO
     { "SSFLAG",   0x02FF }, // START/STOP FLAG FOR PAGING (CNTL 1). CLEARE
 
-    { "HATABS", 0x031A }, // 35-byte handler address table (was 38 bytes)
 
+    { "DDEVIC",   0x0300 }, // PERIPHERAL UNIT 1 BUS I.D. NUMBER
+    { "DUNIT ",   0x0301 }, // UNIT NUMBER
+    { "DCOMND",   0x0302 }, // BUS COMMAND
+    { "DSTATS",   0x0303 }, // COMMAND TYPE/STATUS RETURN
+    { "DBUFLO",   0x0304 }, // 1-byte low data buffer address
+    { "DBUFHI",   0x0305 }, // 1-byte high data buffer address
+    { "DTIMLO",   0x0306 }, // DEVICE TIME OUT IN 1 SECOND UNITS
+    { "DUNUSE",   0x0307 }, // UNUSED BYTE
+    { "DBYTLO",   0x0308 }, // 1-byte low number of bytes to transfer
+    { "DBYTHI",   0x0309 }, // 1-byte high number of bytes to transfer
+    { "DAUX1",    0x030A }, // 1-byte first command auxiliary
+    { "DAUX2",    0x030B }, // 1-byte second command auxiliary
+
+    { "HATABS", 0x031A }, // 35-byte handler address table (was 38 bytes)
 
     { "IOCB",  0x0340 }, // I/O CONTROL BLOCKS
     { "ICHID", 0x0340 }, // HANDLER INDEX NUMBER (FF=IOCB FREE)
@@ -466,6 +480,7 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char
     // Add ROM handlers
     atari_bios_init(s);
     atari_cio_init(s);
+    atari_sio_init(s);
     // Load labels
     if (load_labels)
     {

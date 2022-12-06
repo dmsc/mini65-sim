@@ -19,9 +19,6 @@
 
 #include "sim65.h"
 
-// Init CIO emulation
-void atari_cio_init(sim65 s);
+// Init SIO emulation
+void atari_sio_init(sim65 s);
 
-extern int (*atari_get_char)(void);  /* Reads a character from standard input */
-extern int (*atari_peek_char)(void); /* See if there is a character available to read */
-extern void (*atari_put_char)(int);  /* Put a character to standard output */
