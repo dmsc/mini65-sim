@@ -220,9 +220,21 @@ static const unsigned char devhand_emudos[] = {
 // IOCB defs
 #define CIOV (0xE456)
 #define CIOERR (0xE530) // FIXME: CIO error return routine
-#define IC(a) (regs->x + IC##a) // IOCB address
-#define GET_IC(a) sim65_get_byte(s, IC(a))
+#define ZIOCB  (0x20)  //         ; ZP copy of IOCB
+#define ICHIDZ (0x20)  //         ;HANDLER INDEX NUMBER (FF = IOCB FREE)
+#define ICDNOZ (0x21)  //         ;DEVICE NUMBER (DRIVE NUMBER)
+#define ICCOMZ (0x22)  //         ;COMMAND CODE
+#define ICSTAZ (0x23)  //         ;STATUS OF LAST IOCB ACTION
+#define ICBALZ (0x24)  //         ;BUFFER ADDRESS LOW BYTE
+#define ICBAHZ (0x25)  //         ;1-byte high buffer address
+#define ICPTLZ (0x26)  //         ;PUT BYTE ROUTINE ADDRESS -1
+#define ICPTHZ (0x27)  //         ;1-byte high PUT-BYTE routine address
+#define ICBLLZ (0x28)  //         ;BUFFER LENGTH LOW BYTE
+#define ICBLHZ (0x29)  //         ;1-byte high buffer length
+#define ICAX1Z (0x2A)  //         ;AUXILIARY INFORMATION FIRST BYTE
+#define ICAX2Z (0x2B)  //         ;1-byte second auxiliary information
 #define CIOCHR (0x2F)  //         ;CHARACTER BYTE FOR CURRENT OPERATION
+#define IOCB  (0x0340) //         ;I/O control block
 #define ICHID (0x0340) //         ;HANDLER INDEX NUMBER (FF=IOCB FREE)
 #define ICDNO (0x0341) //         ;DEVICE NUMBER (DRIVE NUMBER)
 #define ICCOM (0x0342) //         ;COMMAND CODE
@@ -239,6 +251,7 @@ static const unsigned char devhand_emudos[] = {
 #define ICAX4 (0x034D) //         ;1-byte fourth auxiliary information
 #define ICAX5 (0x034E) //         ;1-byte fifth auxiliary information
 #define ICSPR (0x034F) //         ;SPARE BYTE
+
 static const unsigned char iocv_empty[16] = {
     0xFF, 0, 0, 0, // HID, DNO, COM, STA
     0, 0, LO(CIOERR - 1), HI(CIOERR - 1), // BAL, BAH, PTL, PTH
@@ -246,9 +259,49 @@ static const unsigned char iocv_empty[16] = {
     0, 0, 0, 0 // AX3, AX4, AX5, SPR
 };
 
-static int cio_exit(sim65 s, struct sim65_reg *regs)
+const char *cio_cmd_name(int cmd)
 {
-    poke(s, IC(STA), regs->y);
+    struct {
+        int num;
+        const char *name;
+    } cmds[] = {
+        {  3, "OPEN" },
+        {  5, "GETREC" },
+        {  7, "GETCHR" },
+        {  9, "PUTREC" },
+        { 11, "PUTCHR" },
+        { 12, "CLOSE" },
+        { 13, "STATUS" },
+        { 17, "DRAWLN" },
+        { 18, "FILLIN" },
+        { 0x20, "RENAME" },
+        { 0x21, "DELETE" },
+        { 0x23, "LOCKFL" },
+        { 0x24, "UNLOCK" },
+        { 0x25, "POINT" },
+        { 0x26, "NOTE" },
+        { 0x27, "GETFL" },
+        { 0x28, "LOAD" },
+        { 0, 0 }
+    };
+
+    if (cmd < 3)
+        return "invalid";
+
+    for (int i = 0; cmds[i].num; i++)
+        if (cmds[i].num == cmd)
+            return cmds[i].name;
+    return "special";
+}
+
+static int cio_store(sim65 s, struct sim65_reg *regs)
+{
+    // Store status from Y
+    poke(s, peek(s, ICSTAZ), regs->y);
+    // Copy ZIOCB back
+    for (int i = 0; i < 12; i++)
+        poke(s, IOCB + regs->x + i, peek(s, ZIOCB + i));
+    // Set flags
     if (regs->y & 0x80)
         sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     else
@@ -259,48 +312,91 @@ static int cio_exit(sim65 s, struct sim65_reg *regs)
 static int cio_error(sim65 s, struct sim65_reg *regs, const char *err, unsigned value)
 {
     regs->y = value & 0xFF;
+    sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     sim65_dprintf(s, "CIO: %s", err);
-    return cio_exit(s, regs);
-}
-
-static int cio_ok(sim65 s, struct sim65_reg *r, unsigned acc)
-{
-    r->a = acc & 0xFF;
-    r->y = 1;
-    return cio_exit(s, r);
+    return 1;
 }
 
 // Calls through DEVTAB offset
-static void call_devtab(sim65 s, struct sim65_reg *regs, uint16_t devtab, int fn)
+static void call_devtab(sim65 s, struct sim65_reg *regs, int fn)
 {
+    // Get device table
+    unsigned hid  = peek(s, ICHIDZ);
+    unsigned devtab = dpeek(s, 1 + hid + HATABS);
+
     if (fn == DEVR_PUT)
         poke(s, CIOCHR, regs->a);
+
     sim65_call(s, regs, 1 + dpeek(s, devtab + 2 * fn));
+
     if (fn == DEVR_GET)
         poke(s, CIOCHR, regs->a);
 }
 
-static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+static const char *cio_fname(sim65 s)
 {
-    if (regs->x & 0x0F || regs->x >= 0x80)
-        return cio_error(s, regs, "invalid value of X register", 134);
+    static char buf[16];
+    unsigned adr = dpeek(s, ICBALZ);
+    int i;
+    for(i = 0; i < 15; i++)
+    {
+        uint8_t c = peek(s, adr + i);
+        if (c < '!' || c > 'z')
+            break;
+        buf[i] = c;
+    }
+    buf[i] = 0;
+    return buf;
+}
 
-    unsigned hid  = GET_IC(HID);
-    unsigned badr = GET_IC(BAL) | (GET_IC(BAH) << 8);
-    unsigned blen = GET_IC(BLL) | (GET_IC(BLH) << 8);
-    unsigned com  = GET_IC(COM);
-    unsigned ax1  = GET_IC(AX1);
+// Performs CIO part of open: search HATAB and init IOCBZ
+static int cio_init_open(sim65 s, struct sim65_reg *regs)
+{
+    // Get handle and call open routine.
+    unsigned badr = dpeek(s, ICBALZ);
+    unsigned dev = peek(s, badr);
+    unsigned num = peek(s, badr + 1) - '0';
 
+    sim65_dprintf(s, "CIO open '%s'", cio_fname(s));
+
+    if (num > 9 || num < 1)
+        num = 1;
+
+    // Search HATAB
+    unsigned hid = 0xFF;
+    for (int i = 0; i < 32; i += 3)
+    {
+        if (peek(s, HATABS + i) == dev)
+            hid = i;
+    }
+
+    // Error if not found
+    if (hid == 0xFF)
+        return cio_error(s, regs, "invalid device name", 0x82);
+
+    // Get devtab
     unsigned devtab = dpeek(s, 1 + hid + HATABS);
 
-    if (hid == 0xFF && com != 3 && com < 12)
-        return cio_error(s, regs, "channel not open", 133);
+    // Store into IOCBZ
+    poke(s, ICHIDZ, hid);
+    dpoke(s, ICPTLZ, dpeek(s, devtab + 6));
+    poke(s, ICDNOZ, num);
+    return 0;
+}
 
-    if (com < 3)
-    {
-        sim65_dprintf(s, "CIO CMD = %d", com);
-        return cio_error(s, regs, "invalid command", 132);
-    }
+static void cio_fix_length(sim65 s, struct sim65_reg *regs)
+{
+    dpoke(s, ICBLLZ, dpeek(s, regs->x + ICBLL) - dpeek(s, ICBLLZ));
+    dpoke(s, ICBALZ, dpeek(s, regs->x + ICBAL));
+}
+
+static int cio_do_command(sim65 s, struct sim65_reg *regs)
+{
+    unsigned com  = peek(s, ICCOMZ);
+    unsigned ax1  = peek(s, ICAX1Z);
+
+    // Assume no error
+    regs->y = 1;
 
     if ((com >= 4) && (com < 8) && !(ax1 & 0x4))
         return cio_error(s, regs, "write only", 131);
@@ -309,174 +405,190 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         return cio_error(s, regs, "read only", 135);
 
     // Commands
-    if (com == 3)
-    {
-        sim65_dprintf(s, "CIO open %c%c", peek(s, badr), peek(s, badr + 1));
-        // OPEN (command 0)
-        if (GET_IC(HID) != 0xFF)
-            return cio_error(s, regs, "channel already opened", 129);
-        // Search handle and call open routine.
-        unsigned dev = peek(s, badr);
-        unsigned num = peek(s, badr + 1) - '0';
-        if (num > 9)
-            num = 0;
-
-        // Store DeviceNumber from filename
-        poke(s, IC(DNO), num);
-
-        // Search HATAB
-        int i;
-        for (i = 0; i < 32; i += 3)
-        {
-            if (peek(s, HATABS + i) == dev)
-            {
-                // Copy data
-                unsigned devtab = dpeek(s, 1 + i + HATABS);
-                poke(s, IC(HID), i);
-                dpoke(s, IC(PTL), dpeek(s, devtab + 6));
-                // Found, call open
-                call_devtab(s, regs, devtab, DEVR_OPEN);
-                return cio_exit(s, regs);
-            }
-        }
-        // Return error
-        regs->y = 0x82;
-        return cio_exit(s, regs);
-    }
-    else if (com == 4 || com == 5)
+    if (com == 4 || com == 5)
     {
         // GET RECORD
         for (;;)
         {
             // Get single
-            call_devtab(s, regs, devtab, DEVR_GET);
+            call_devtab(s, regs, DEVR_GET);
             if (regs->y & 0x80)
                 break;
-            if (blen)
+            if (dpeek(s, ICBLLZ))
             {
-                poke(s, badr, regs->a);
-                badr++;
-                blen--;
+                poke(s, dpeek(s, ICBALZ), regs->a);
+                dpoke(s, ICBALZ, dpeek(s, ICBALZ) + 1);
+                dpoke(s, ICBLLZ, dpeek(s, ICBLLZ) - 1);
             }
             if (regs->a == 0x9B)
                 break;
         }
-        dpoke(s, IC(BLL), dpeek(s, IC(BLL)) - blen);
-        return cio_exit(s, regs);
+        cio_fix_length(s, regs);
     }
     else if (com == 6 || com == 7)
     {
         // GET CHARS
-        if (!blen)
+        if (!dpeek(s, ICBLLZ))
         {
             // Get single
-            call_devtab(s, regs, devtab, DEVR_GET);
-            return cio_exit(s, regs);
+            call_devtab(s, regs, DEVR_GET);
         }
         else
         {
-            while (blen)
+            while (dpeek(s, ICBLLZ))
             {
                 // get
-                call_devtab(s, regs, devtab, DEVR_GET);
+                call_devtab(s, regs, DEVR_GET);
                 if (regs->y & 0x80)
                     break;
-                poke(s, badr, regs->a);
-                badr++;
-                blen--;
+                poke(s, dpeek(s, ICBALZ), regs->a);
+                dpoke(s, ICBALZ, dpeek(s, ICBALZ) + 1);
+                dpoke(s, ICBLLZ, dpeek(s, ICBLLZ) - 1);
             }
-            // Must return number of bytes transfered
-            sim65_dprintf(s, "ICBL ends at %04x, transfered %d bytes",
-                          blen, dpeek(s, IC(BLL)) - blen);
-            dpoke(s, IC(BLL), dpeek(s, IC(BLL)) - blen);
-            return cio_exit(s, regs);
+            cio_fix_length(s, regs);
         }
     }
     else if (com == 8 || com == 9)
     {
         // PUT RECORD
-        if (!blen)
+        if (!dpeek(s, ICBLLZ))
         {
             // Put single
-            regs->a = 0x9B;
-            call_devtab(s, regs, devtab, DEVR_PUT);
-            return cio_exit(s, regs);
+            call_devtab(s, regs, DEVR_PUT);
         }
         else
         {
-            while (blen)
+            while (dpeek(s, ICBLLZ))
             {
-                regs->a = peek(s, badr);
-                call_devtab(s, regs, devtab, DEVR_PUT);
+                regs->a = peek(s, dpeek(s, ICBALZ));
+                call_devtab(s, regs, DEVR_PUT);
                 if (regs->y & 0x80)
                     break;
-                badr++;
-                blen--;
+                dpoke(s, ICBALZ, dpeek(s, ICBALZ) + 1);
+                dpoke(s, ICBLLZ, dpeek(s, ICBLLZ) - 1);
                 if (peek(s, CIOCHR) == 0x9B)
                     break;
             }
-            // Must return number of bytes transfered
-            dpoke(s, IC(BLL), dpeek(s, IC(BLL)) - blen);
-            return cio_exit(s, regs);
+            // Put extra EOL if wrote all length
+            if (!dpeek(s, ICBLLZ))
+            {
+                regs->a = 0x9B;
+                call_devtab(s, regs, DEVR_PUT);
+            }
+            cio_fix_length(s, regs);
         }
     }
     else if (com == 10 || com == 11)
     {
         // PUT CHARS
-        if (!blen)
+        if (!dpeek(s, ICBLLZ))
         {
             // Put single
-            call_devtab(s, regs, devtab, DEVR_PUT);
-            return cio_exit(s, regs);
+            call_devtab(s, regs, DEVR_PUT);
         }
         else
         {
-            while (blen)
+            while (dpeek(s, ICBLLZ))
             {
-                regs->a = peek(s, badr);
-                call_devtab(s, regs, devtab, DEVR_PUT);
+                regs->a = peek(s, dpeek(s, ICBALZ));
+                call_devtab(s, regs, DEVR_PUT);
                 if (regs->y & 0x80)
                     break;
-                badr++;
-                blen--;
+                dpoke(s, ICBALZ, dpeek(s, ICBALZ) + 1);
+                dpoke(s, ICBLLZ, dpeek(s, ICBLLZ) - 1);
             }
-            // Must return number of bytes transfered
-            dpoke(s, IC(BLL), dpeek(s, IC(BLL)) - blen);
-            return cio_exit(s, regs);
+            cio_fix_length(s, regs);
         }
     }
     else if (com == 12)
     {
         // CLOSE
-        regs->y = 1;
-        if (GET_IC(HID) != 0xFF)
-        {
-            // Call close handler
-            call_devtab(s, regs, devtab, DEVR_CLOSE);
-        }
-        poke(s, IC(HID), 0xFF);
-        dpoke(s, IC(PTL), CIOERR - 1);
-        return cio_exit(s, regs);
+        // Call close handler
+        call_devtab(s, regs, DEVR_CLOSE);
+        poke(s, ICHIDZ, 0xFF);
+        dpoke(s, ICPTLZ, CIOERR - 1);
     }
     else if (com == 13)
     {
         // GET STATUS
+        call_devtab(s, regs, DEVR_STATUS);
     }
     else if (com >= 14)
     {
         // SPECIAL
-        if (com == 37)
-        {
-            unsigned ax3 = GET_IC(AX3);
-            unsigned ax4 = GET_IC(AX4);
-            unsigned ax5 = GET_IC(AX5);
-            sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
-            return cio_ok(s, regs, 0);
-        }
-        // Call close handler
-        call_devtab(s, regs, devtab, DEVR_SPECIAL);
-        return cio_exit(s, regs);
+        call_devtab(s, regs, DEVR_SPECIAL);
     }
+    return 0;
+}
+
+static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    if (regs->x & 0x0F || regs->x >= 0x80)
+        return cio_error(s, regs, "invalid value of X register", 134);
+
+    // Start with cleared error:
+    regs->y = 1;
+    sim65_set_flags(s, SIM65_FLAG_N, 0);
+
+    // Load from CIO and copy to ZP
+    for (int i = 0; i < 12; i++)
+        poke(s, ZIOCB + i, peek(s, regs->x + IOCB + i));
+
+    unsigned hid  = peek(s, ICHIDZ);
+    unsigned com  = peek(s, ICCOMZ);
+
+    sim65_dprintf(s, "CIO #$%02x (%02x), $%02x (%s), $%04x", regs->x, hid,
+                  com, cio_cmd_name(com), dpeek(s, ICBLLZ));
+
+    // Error out on invalid command
+    if (com < 3)
+    {
+        sim65_dprintf(s, "CIO bad CMD = %d", com);
+        return cio_error(s, regs, "invalid command", 132);
+    }
+    else if (com == 3)
+    {
+        // OPEN (command 0)
+        if (hid != 0xFF)
+            return cio_error(s, regs, "channel already opened", 129);
+
+        if (!cio_init_open(s, regs))
+        {
+            // Found, call open
+            call_devtab(s, regs, DEVR_OPEN);
+            cio_store(s, regs);
+        }
+        return 0;
+    }
+
+    if (hid == 0xFF)
+    {
+        // CIO channel not open
+        if (com == 12)
+            // Already closed,
+            return 0;
+        else if (com < 12)
+            // Invalid function
+            return cio_error(s, regs, "channel not open", 133);
+        else
+        {
+            // Perform "soft open", returns without restoring IOCB
+            if (!cio_init_open(s, regs))
+            {
+                // Found, call open
+                if (com == 13)
+                    // GET STATUS
+                    call_devtab(s, regs, DEVR_STATUS);
+                else
+                    // SPECIAL
+                    call_devtab(s, regs, DEVR_SPECIAL);
+            }
+            return 0;
+        }
+    }
+
+    cio_do_command(s, regs);
+    cio_store(s, regs);
 
     return 0;
 }
@@ -580,11 +692,11 @@ static int sim_screen_lct(sim65 s, struct sim65_reg *regs, unsigned addr, int da
 static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // We need IOCB data
-    unsigned cmd  = GET_IC(COM);
+    unsigned cmd  = peek(s, ICCOMZ);
     switch (addr & 7)
     {
         case DEVR_OPEN:
-            regs->a = (GET_IC(AX2) & 0x0F) | (GET_IC(AX1) & 0xF0);
+            regs->a = (peek(s, ICAX2Z) & 0x0F) | (peek(s, ICAX1Z) & 0xF0);
             return sim_screen_opn(s, regs, addr, data);
         case DEVR_CLOSE:
             sim65_dprintf(s, "SCREEN: close");
@@ -698,10 +810,11 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
     // We need IOCB data
     unsigned chn  = (regs->x >> 4);
-    unsigned badr = GET_IC(BAL) | (GET_IC(BAH) << 8);
-    unsigned dno  = GET_IC(DNO);
-    unsigned ax1  = GET_IC(AX1);
-    unsigned ax2  = GET_IC(AX2);
+    unsigned cmd  = peek(s, ICCOMZ);
+    unsigned badr = dpeek(s, ICBALZ);
+    unsigned dno  = peek(s, ICDNOZ);
+    unsigned ax1  = peek(s, ICAX1Z);
+    unsigned ax2  = peek(s, ICAX2Z);
 
     switch (addr & 7)
     {
@@ -811,6 +924,13 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         case DEVR_STATUS:
             return 0;
         case DEVR_SPECIAL:
+            if (cmd == 37)
+            {
+                unsigned ax3 = peek(s, regs->x + ICAX3);
+                unsigned ax4 = peek(s, regs->x + ICAX4);
+                unsigned ax5 = peek(s, regs->x + ICAX5);
+                sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
+            }
             return 0;
         case DEVR_INIT:
             return 0;
@@ -829,7 +949,7 @@ void atari_cio_init(sim65 s, int emu_dos)
     add_rts_callback(s, CIOV, 1, sim_CIOV);
     // Init empty
     for (i = 0; i < 8; i++)
-        sim65_add_data_ram(s, ICHID + i * 16, iocv_empty, 16);
+        sim65_add_data_ram(s, IOCB + i * 16, iocv_empty, 16);
     // Copy HTAB table
     sim65_add_data_ram(s, HATABS, hatab_default, sizeof(hatab_default));
     // Copy device handlers table
