@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // SIO defs
@@ -74,7 +75,12 @@ enum {
 };
 
 // The contents of the disk image
-static uint8_t disk_image[720 * 128];
+static uint8_t default_image_data[720 * 128];
+static struct {
+    uint8_t *data;
+    unsigned sec_size;
+    unsigned sec_count;
+} disk_image = { default_image_data, 128, 720 };
 
 // Load disk image from file
 void atari_sio_load_image(sim65 s, const char *file_name)
@@ -101,21 +107,45 @@ void atari_sio_load_image(sim65 s, const char *file_name)
             fclose(f);
             return;
         }
-        unsigned isz = hdr[2] | (hdr[3] << 8);
         unsigned ssz = hdr[4] | (hdr[5] << 8);
-        if (isz != 0x1680 || ssz != 128 || hdr[6] != 0)
+        if (ssz != 128 && ssz != 256)
         {
-            sim65_eprintf(s, "%s: only 720 SD image supported", file_name);
+            sim65_eprintf(s, "%s: unsupported ATR sector size (%d)", file_name, ssz);
             fclose(f);
             return;
         }
-        if (720 != fread(disk_image, 128, 720, f))
+        unsigned isz = (hdr[2] << 4) | (hdr[3] << 12) | (hdr[6] << 20);
+        // Some images store full size fo the first 3 sectors, others store
+        // 128 bytes for those:
+        unsigned pad_size = isz % ssz == 0 ? 0 : (ssz - 128) * 3;
+        unsigned num_sectors = (isz + pad_size) / ssz;
+        if (isz >= 0x1000000 || num_sectors * ssz - pad_size != isz)
         {
-            sim65_eprintf(s, "%s: ATR file too short", file_name);
+            sim65_eprintf(s, "%s: invalid ATR image size (%d)", file_name, isz);
             fclose(f);
             return;
+        }
+        // Allocate new storage
+        uint8_t *data = malloc(ssz * num_sectors);
+        // Read 3 first sectors
+        for(int i = 0; i < num_sectors; i++)
+        {
+            if (1 != fread(data + ssz * i, (i < 3 && pad_size) ? 128 : ssz, 1, f))
+            {
+                sim65_eprintf(s, "%s: ATR file too short at sector %d", file_name, i + 1);
+                fclose(f);
+                return;
+            }
         }
         fclose(f);
+        // Ok, copy to image
+        if (disk_image.data != default_image_data)
+            free(disk_image.data);
+        disk_image.data = data;
+        disk_image.sec_size = ssz;
+        disk_image.sec_count = num_sectors;
+        sim65_dprintf(s, "loaded '%s': %d sectors of %d bytes", file_name,
+                      num_sectors, ssz);
     }
 }
 
@@ -132,24 +162,33 @@ static unsigned sio_disk(sim65 s, int unit, int cmd, int stat, int addr, int len
         case 0x57: // Write with verify
             if(0x80 != rw)
                 return SIO_ENAK;
-            if(len != 128)
+            if(aux < 1 || aux > disk_image.sec_count)
                 return SIO_ENAK;
-            if(aux < 1 || aux > 720)
+            // First 3 sectors are 128 bytes:
+            if(aux < 4 && len != 128)
                 return SIO_ENAK;
+            if(aux > 3 && len != disk_image.sec_size)
+                return SIO_ENAK;
+
             sim65_dprintf(s, "SIO D%d write sector %d", unit, aux);
+            aux --;
             for(int i=0; i<len; i++)
-                disk_image[aux * 128 - 128 + i] = sim65_get_byte(s, addr + i);
+                disk_image.data[aux * disk_image.sec_size + i] = sim65_get_byte(s, addr + i);
             return SIO_OK;
 
         case 0x52: // Read
             if(0x40 != rw)
                 return SIO_ENAK;
-            if(len != 128)
+            if(aux < 1 || aux > disk_image.sec_count)
                 return SIO_ENAK;
-            if(aux < 1 || aux > 720)
+            // First 3 sectors are 128 bytes:
+            if(aux < 4 && len != 128)
+                return SIO_ENAK;
+            if(aux > 3 && len != disk_image.sec_size)
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d read sector %d", unit, aux);
-            sim65_add_data_ram(s, addr, &disk_image[aux * 128 - 128], len);
+            aux --;
+            sim65_add_data_ram(s, addr, &disk_image.data[aux * disk_image.sec_size], len);
             return SIO_OK;
 
         case 0x53: // Status request
@@ -176,6 +215,9 @@ static unsigned sio_disk(sim65 s, int unit, int cmd, int stat, int addr, int len
             for(int i=0; i<len; i++)
                 poke(s, addr + i, 0);
             return SIO_OK;
+
+        default:
+            sim65_dprintf(s, "SIO D%d unknown command $%02x", unit, cmd);
     }
     return SIO_ENAK;
 }
