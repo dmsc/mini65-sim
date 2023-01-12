@@ -819,7 +819,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     }
 }
 
-void atari_cio_init(sim65 s)
+void atari_cio_init(sim65 s, int emu_dos)
 {
     unsigned i;
     // Static variables
@@ -834,7 +834,8 @@ void atari_cio_init(sim65 s)
     sim65_add_data_ram(s, HATABS, hatab_default, sizeof(hatab_default));
     // Copy device handlers table
     sim65_add_data_rom(s, EDITRV, devhand_tables, sizeof(devhand_tables));
-    sim65_add_data_rom(s, DISKDV, devhand_emudos, sizeof(devhand_emudos));
+    if (emu_dos)
+        sim65_add_data_rom(s, DISKDV, devhand_emudos, sizeof(devhand_emudos));
     // Init IOCV 0, editor
     poke(s, ICHID, EDITOR_OFFSET);
     poke(s, ICAX1, 0x0C);

@@ -36,6 +36,7 @@ static void print_help(void)
                     " -d: Print debug messages to standard error\n"
                     " -b: Use binary for standard input and output, the default is to\n"
                     "     translate ATASCII to ASCII and vice-versa\n"
+                    " -D: Don´t emulate DOS device.\n"
                     " -I <file>: Loads a disk image for SIO emulation.\n"
                     " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
                     " -t <file>: Store simulation trace into file\n"
@@ -157,6 +158,7 @@ int main(int argc, char **argv)
     int opt;
     unsigned rom = 0;
     int raw_io = 0;
+    int emu_dos = 1;
     const char *lblname = 0, *profname = 0, *profdata = 0, *load_img = 0;
 
     prog_name = argv[0];
@@ -164,7 +166,7 @@ int main(int argc, char **argv)
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:")) != -1)
+    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:D")) != -1)
     {
         switch (opt)
         {
@@ -174,6 +176,9 @@ int main(int argc, char **argv)
                 break;
             case 'd': // debug
                 sim65_set_debug(s, sim65_debug_messages);
+                break;
+            case 'D': // no dos
+                emu_dos = 0;
                 break;
             case 'I': // load image
                 load_img = optarg;
@@ -223,9 +228,9 @@ int main(int argc, char **argv)
 
     // Initialize Atari emu
     if( raw_io )
-        atari_init(s, lblname != 0, raw_get_char, raw_put_char);
+        atari_init(s, lblname != 0, raw_get_char, raw_put_char, emu_dos);
     else
-        atari_init(s, lblname != 0, 0, 0);
+        atari_init(s, lblname != 0, 0, 0, emu_dos);
 
     // Load disk image
     if (load_img)

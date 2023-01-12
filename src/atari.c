@@ -460,7 +460,8 @@ static const struct
     { 0, 0 }
 };
 
-void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char)(int) )
+void atari_init(sim65 s, int load_labels, int (*get_char)(void),
+                void (*put_char)(int), int emu_dos)
 {
     // Init callbacks
     if (get_char)
@@ -479,7 +480,7 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void), void (*put_char
     atari_hardware_init(s);
     // Add ROM handlers
     atari_bios_init(s);
-    atari_cio_init(s);
+    atari_cio_init(s, emu_dos);
     atari_sio_init(s);
     // Load labels
     if (load_labels)

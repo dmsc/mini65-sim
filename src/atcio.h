@@ -20,7 +20,7 @@
 #include "sim65.h"
 
 // Init CIO emulation
-void atari_cio_init(sim65 s);
+void atari_cio_init(sim65 s, int emu_dos);
 
 extern int (*atari_get_char)(void);  /* Reads a character from standard input */
 extern int (*atari_peek_char)(void); /* See if there is a character available to read */
