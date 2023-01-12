@@ -36,6 +36,7 @@ static void print_help(void)
                     " -d: Print debug messages to standard error\n"
                     " -b: Use binary for standard input and output, the default is to\n"
                     "     translate ATASCII to ASCII and vice-versa\n"
+                    " -I <file>: Loads a disk image for SIO emulation.\n"
                     " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
                     " -t <file>: Store simulation trace into file\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
@@ -156,14 +157,14 @@ int main(int argc, char **argv)
     int opt;
     unsigned rom = 0;
     int raw_io = 0;
-    const char *lblname = 0, *profname = 0, *profdata = 0;
+    const char *lblname = 0, *profname = 0, *profdata = 0, *load_img = 0;
 
     prog_name = argv[0];
     s = sim65_new();
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:")) != -1)
+    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:")) != -1)
     {
         switch (opt)
         {
@@ -173,6 +174,9 @@ int main(int argc, char **argv)
                 break;
             case 'd': // debug
                 sim65_set_debug(s, sim65_debug_messages);
+                break;
+            case 'I': // load image
+                load_img = optarg;
                 break;
             case 'b': // binary/raw
                 raw_io = 1;
@@ -222,6 +226,10 @@ int main(int argc, char **argv)
         atari_init(s, lblname != 0, raw_get_char, raw_put_char);
     else
         atari_init(s, lblname != 0, 0, 0);
+
+    // Load disk image
+    if (load_img)
+        atari_sio_load_image(s, load_img);
 
     // Set profile info
     if (profname || profdata)
