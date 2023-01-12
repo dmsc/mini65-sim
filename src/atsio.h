@@ -21,4 +21,3 @@
 
 // Init SIO emulation
 void atari_sio_init(sim65 s);
-

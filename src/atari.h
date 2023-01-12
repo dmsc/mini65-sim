@@ -28,3 +28,5 @@ enum sim65_error atari_xex_load(sim65 s, const char *name);
 enum sim65_error atari_rom_load(sim65 s, int addr, const char *name);
 // Install a callback handler, with an RTS in rom
 void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb);
+// Load a disk image
+void atari_sio_load_image(sim65 s, const char *file_name);
