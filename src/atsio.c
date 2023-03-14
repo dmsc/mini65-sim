@@ -246,6 +246,7 @@ static int sim_SIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         e = SIO_ETIME;
 
     regs->y = e;
+    poke(s, 0x0303, e);
     if(e != SIO_OK)
         sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     else
