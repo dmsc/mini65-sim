@@ -192,28 +192,28 @@ static unsigned sio_disk(sim65 s, int unit, int cmd, int stat, int addr, int len
             return SIO_OK;
 
         case 0x53: // Status request
-            if(0x80 != rw)
+            if(0x40 != rw)
                 return SIO_ENAK;
             if(len != 4)
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d status", unit);
             uint8_t status[4] = {
-                0,      // command status
-                0,      // hardware status
-                1,      // controller timeout
+                16,     // command status - drive active
+                255,    // hardware status - all bits OK
+                224,    // format timeout - standard value
                 0       // - unused -
             };
             sim65_add_data_ram(s, addr, status, 4);
             return SIO_OK;
 
         case 0x21: // Format
-            if(0x80 != rw)
+            if(0x40 != rw)
                 return SIO_ENAK;
             if(len != 128)
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d format", unit);
             for(int i=0; i<len; i++)
-                poke(s, addr + i, 0);
+                poke(s, addr + i, 0xFF);
             return SIO_OK;
 
         default:
@@ -254,11 +254,71 @@ static int sim_SIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
+static int sim_DSKINV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    int cmd = peek(s, 0x302);
+    poke(s, 0x300, 0x31);
+
+    // Read/Write data
+    if (cmd == 0x50 || cmd == 0x57) // put or write
+        poke(s, 0x303, 0x80);
+    else
+        poke(s, 0x303, 0x40);
+
+    if (cmd == 0x21)
+        poke(s, 0x306, peek(s, 0x246)); // format timeout
+    else
+        poke(s, 0x306, 0x0F);
+
+    if (cmd == 0x53)    // status
+    {
+        // Initialize DBUF to DVSTAT (0x2EA), and length to 4
+        poke(s, 0x304, 0xEA);
+        poke(s, 0x305, 0x02);
+        poke(s, 0x308, 0x04);
+        poke(s, 0x309, 0x00);
+    }
+    else
+    {
+        // Initialize length to sector length
+        poke(s, 0x308, peek(s, 0x2D5));
+        poke(s, 0x309, peek(s, 0x2D6));
+    }
+    return sim_SIOV(s, regs, addr, data);
+}
+
+static int sim_DINITV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    poke(s, 0x246, 0xA0);       // format timeout
+    poke(s, 0x2D5, 0x80);       // default sector size
+    poke(s, 0x2D6, 0x00);
+    return 0;
+}
+
 void atari_sio_init(sim65 s)
 {
-    // CIOV
+    // SIOV
     add_rts_callback(s, SIOV, 1, sim_SIOV);
+    // DSKINV - used by MyDOS
+    add_rts_callback(s, 0xE453, 1, sim_DSKINV);
+    // DINITV
+    add_rts_callback(s, 0xE450, 1, sim_DINITV);
+    // Init SIO parameters
+    sim_DINITV(s, 0, 0, 0);
+
     // Mark DCB as uninitialized
     sim65_add_ram(s, DDEVIC, 11);
+
+    // Initialize simulating reading of the first sector
+    poke(s, 0x300, 0x31);       // Disk
+    poke(s, 0x301, 0x01);       // #1
+    poke(s, 0x302, 0x52);       // Read
+    poke(s, 0x303, 0x40);       // input
+    poke(s, 0x304, 0x00);       // buffer = 0x400
+    poke(s, 0x305, 0x04);
+    poke(s, 0x306, 0x0F);       // timeout = 15
+    poke(s, 0x308, 0x80);       // size = 128
+    poke(s, 0x309, 0x00);
+
 }
 
