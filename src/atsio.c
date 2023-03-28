@@ -200,7 +200,7 @@ static unsigned sio_disk(sim65 s, int unit, int cmd, int stat, int addr, int len
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d status", unit);
             uint8_t status[4] = {
-                16,     // command status - drive active
+                16 + (disk_image.sec_size>128?32:0) ,     // command status - drive active
                 255,    // hardware status - all bits OK
                 224,    // format timeout - standard value
                 0       // - unused -
@@ -337,6 +337,9 @@ static int sio_emu_read_sector(sim65 s, int sect, int addr)
 enum sim65_error atari_sio_boot(sim65 s)
 {
     enum sim65_error e;
+    // Set boot flag to 0
+    poke(s, 0x09, 0);
+    poke(s, 0x244, 0xFF);
     // Disk boot:
     //  - Init disk SIO: Call DINITV
     e = sim_DINITV(s, 0, 0, 0);
@@ -373,6 +376,9 @@ enum sim65_error atari_sio_boot(sim65 s)
     e = sim65_call(s, 0, dpeek(s, 0xC));
     if (e)
         return e;
+    // Set boot flag to 1
+    poke(s, 0x09, 1);
+    poke(s, 0x244, 0);
     // Call dosvec
     e = sim65_call(s, 0, dpeek(s, 0xA));
     return e;

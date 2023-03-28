@@ -14,6 +14,7 @@ Currently, the emulated calls are:
 - CIO `K:` device, implements character input from the console.
 - RTCLOK is emulated using real time.
 - A standard memory map with usable RAM up to 0xBFFF is provided.
+- SIO disk device, including booting from an ATR disk image.
 
 The only hardware registers emulated are POKEY `RANDOM` register and GTIA
 `CONSOL`.
