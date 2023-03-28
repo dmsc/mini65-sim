@@ -21,3 +21,7 @@
 
 // Init SIO emulation
 void atari_sio_init(sim65 s);
+// Boot from loaded disk image
+enum sim65_error atari_sio_boot(sim65 s);
+// Load a disk image
+int atari_sio_load_image(sim65 s, const char *file_name);

@@ -27,7 +27,9 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void),
 enum sim65_error atari_xex_load(sim65 s, const char *name);
 // Load ROM file
 enum sim65_error atari_rom_load(sim65 s, int addr, const char *name);
+// Boot from a loaded disk image
+enum sim65_error atari_boot_image(sim65 s);
 // Install a callback handler, with an RTS in rom
 void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb);
 // Load a disk image
-void atari_sio_load_image(sim65 s, const char *file_name);
+int atari_load_image(sim65 s, const char *file_name);

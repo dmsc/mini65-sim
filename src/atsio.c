@@ -83,13 +83,14 @@ static struct {
 } disk_image = { default_image_data, 128, 720 };
 
 // Load disk image from file
-void atari_sio_load_image(sim65 s, const char *file_name)
+int atari_sio_load_image(sim65 s, const char *file_name)
 {
     FILE *f = fopen(file_name, "rb");
     if (!f)
     {
         sim65_eprintf(s, "can´t open disk image '%s': %s",
                       file_name, strerror(errno));
+        return 1;
     }
     else
     {
@@ -99,20 +100,20 @@ void atari_sio_load_image(sim65 s, const char *file_name)
         {
             sim65_eprintf(s, "%s: can´t read ATR header", file_name);
             fclose(f);
-            return;
+            return 1;
         }
         if (hdr[0] != 0x96 || hdr[1] != 0x02)
         {
             sim65_eprintf(s, "%s: not an ATR image", file_name);
             fclose(f);
-            return;
+            return 1;
         }
         unsigned ssz = hdr[4] | (hdr[5] << 8);
         if (ssz != 128 && ssz != 256)
         {
             sim65_eprintf(s, "%s: unsupported ATR sector size (%d)", file_name, ssz);
             fclose(f);
-            return;
+            return 1;
         }
         unsigned isz = (hdr[2] << 4) | (hdr[3] << 12) | (hdr[6] << 20);
         // Some images store full size fo the first 3 sectors, others store
@@ -123,7 +124,7 @@ void atari_sio_load_image(sim65 s, const char *file_name)
         {
             sim65_eprintf(s, "%s: invalid ATR image size (%d)", file_name, isz);
             fclose(f);
-            return;
+            return 1;
         }
         // Allocate new storage
         uint8_t *data = malloc(ssz * num_sectors);
@@ -134,7 +135,7 @@ void atari_sio_load_image(sim65 s, const char *file_name)
             {
                 sim65_eprintf(s, "%s: ATR file too short at sector %d", file_name, i + 1);
                 fclose(f);
-                return;
+                return 1;
             }
         }
         fclose(f);
@@ -146,6 +147,7 @@ void atari_sio_load_image(sim65 s, const char *file_name)
         disk_image.sec_count = num_sectors;
         sim65_dprintf(s, "loaded '%s': %d sectors of %d bytes", file_name,
                       num_sectors, ssz);
+        return 0;
     }
 }
 
@@ -322,3 +324,56 @@ void atari_sio_init(sim65 s)
 
 }
 
+static int sio_emu_read_sector(sim65 s, int sect, int addr)
+{
+    poke(s, 0x304, addr & 0xFF);
+    poke(s, 0x305, addr >> 8);
+    poke(s, 0x30A, sect & 0xFF);
+    poke(s, 0x30B, sect >> 8);
+    enum sim65_error e = sim65_call(s, 0, 0xE453);
+    return e || (peek(s, 0x303) != 1) ? 1 : 0;
+}
+
+enum sim65_error atari_sio_boot(sim65 s)
+{
+    enum sim65_error e;
+    // Disk boot:
+    //  - Init disk SIO: Call DINITV
+    e = sim_DINITV(s, 0, 0, 0);
+    //  - Read sector 1 to $400
+    if (sio_emu_read_sector(s, 1, 0x400))
+        return sim65_err_user;
+    //  - Read first bytes, and store to DFLAGS and DOSINI
+    int dflags = peek(s, 0x400);
+    int dcount = peek(s, 0x401);
+    int bootad = dpeek(s, 0x402);
+    int dosini = dpeek(s, 0x404);
+    poke(s, 0x240, dflags);
+    poke(s, 0x241, 0);
+    poke(s, 0x242, bootad & 0xFF);
+    poke(s, 0x243, bootad >> 8);
+    poke(s, 0xC, dosini & 0xFF);
+    poke(s, 0xD, dosini >> 8);
+    //  - Copy all 128 bytes to boot address, read rest of sectors
+    for(int i=0; i<128; i++)
+        poke(s, bootad + i, peek(s, 0x400 + i));
+    //  - Read rest of sectors
+    for(int n = 1; n<dcount; n++)
+    {
+        if (sio_emu_read_sector(s, n + 1, 0x400))
+            return sim65_err_user;
+        for(int i=0; i<128; i++)
+            poke(s, bootad + n * 0x80 + i, peek(s, 0x400 + i));
+    }
+    // Call boot address
+    e = sim65_call(s, 0, bootad + 6);
+    if (e)
+        return e;
+    // Call dosini
+    e = sim65_call(s, 0, dpeek(s, 0xC));
+    if (e)
+        return e;
+    // Call dosvec
+    e = sim65_call(s, 0, dpeek(s, 0xA));
+    return e;
+}

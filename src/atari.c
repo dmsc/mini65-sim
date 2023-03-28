@@ -622,3 +622,13 @@ enum sim65_error atari_rom_load(sim65 s, int addr, const char *name)
     sim65_dprintf(s, "call ROM start at $%04X", saddr);
     return sim65_call(s, 0, saddr);
 }
+
+enum sim65_error atari_boot_image(sim65 s)
+{
+    return atari_sio_boot(s);
+}
+
+int atari_load_image(sim65 s, const char *file_name)
+{
+    return atari_sio_load_image(s, file_name);
+}

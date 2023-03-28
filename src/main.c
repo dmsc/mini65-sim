@@ -38,6 +38,7 @@ static void print_help(void)
                     "     translate ATASCII to ASCII and vice-versa\n"
                     " -D: Don´t emulate DOS device.\n"
                     " -I <file>: Loads a disk image for SIO emulation.\n"
+                    "            If no executable is given, boots from this image.\n"
                     " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
                     " -t <file>: Store simulation trace into file\n"
                     " -l <file>: Loads label file, used in simulation trace\n"
@@ -216,11 +217,13 @@ int main(int argc, char **argv)
         }
     }
 
-    if (optind >= argc)
-        print_error("missing filename");
-    else if (optind + 1 != argc)
+    const char *fname = 0;
+    if (optind + 1 < argc)
         print_error("only one filename allowed");
-    const char *fname = argv[optind];
+    else if (optind < argc)
+        fname = argv[optind];
+    else if (!load_img)
+        print_error("missing filename");
 
     // Load labels file
     if (lblname)
@@ -234,7 +237,8 @@ int main(int argc, char **argv)
 
     // Load disk image
     if (load_img)
-        atari_sio_load_image(s, load_img);
+        if( atari_load_image(s, load_img) )
+            exit_error("can't load disk image");
 
     // Set profile info
     if (profname || profdata)
@@ -260,11 +264,17 @@ int main(int argc, char **argv)
         if (e == sim65_err_user)
             exit_error("error reading ROM file");
     }
-    else
+    else if (fname)
     {
         e = atari_xex_load(s, fname);
         if (e == sim65_err_user)
             exit_error("error reading binary file");
+    }
+    else
+    {
+        e = atari_boot_image(s);
+        if (e == sim65_err_user)
+            exit_error("error booting from disk image");
     }
     // start
     if (e == sim65_err_cycle_limit)
