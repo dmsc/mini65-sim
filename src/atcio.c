@@ -233,6 +233,7 @@ static const unsigned char devhand_emudos[] = {
 #define ICBLHZ (0x29)  //         ;1-byte high buffer length
 #define ICAX1Z (0x2A)  //         ;AUXILIARY INFORMATION FIRST BYTE
 #define ICAX2Z (0x2B)  //         ;1-byte second auxiliary information
+#define ICIDNO (0x2E)  //         ;IOCB NUMBER X 16
 #define CIOCHR (0x2F)  //         ;CHARACTER BYTE FOR CURRENT OPERATION
 #define IOCB  (0x0340) //         ;I/O control block
 #define ICHID (0x0340) //         ;HANDLER INDEX NUMBER (FF=IOCB FREE)
@@ -521,6 +522,18 @@ static int cio_do_command(sim65 s, struct sim65_reg *regs)
     return 0;
 }
 
+static void cio_clear_iocb(sim65 s)
+{
+    for (int i = 0; i < 8; i++)
+        sim65_add_data_ram(s, IOCB + i * 16, iocv_empty, 16);
+}
+
+static int sim_CIOINV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    cio_clear_iocb(s);
+    return 0;
+}
+
 static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     if (regs->x & 0x0F || regs->x >= 0x80)
@@ -531,6 +544,7 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     sim65_set_flags(s, SIM65_FLAG_N, 0);
 
     // Load from CIO and copy to ZP
+    poke(s, ICIDNO, regs->x);
     for (int i = 0; i < 12; i++)
         poke(s, ZIOCB + i, peek(s, regs->x + IOCB + i));
 
@@ -672,6 +686,13 @@ static int sim_screen_opn(sim65 s, struct sim65_reg *regs, unsigned addr, int da
 static int sim_screen_plt(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     sys_screen(s, scr_cmd_plot, dpeek(s, COLCRS), peek(s, ROWCRS), peek(s, ATACHR), regs);
+    return 0;
+}
+
+static int sim_screen_sms(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    // Copy SAVMSC to ADDRESS
+    dpoke(s, 0x64, dpeek(s, 0x58));
     return 0;
 }
 
@@ -941,15 +962,15 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 void atari_cio_init(sim65 s, int emu_dos)
 {
-    unsigned i;
     // Static variables
     editr_last_row = 0;
 
     // CIOV
     add_rts_callback(s, CIOV, 1, sim_CIOV);
+    // CIOINV
+    add_rts_callback(s, 0xE46E, 1, sim_CIOINV);
     // Init empty
-    for (i = 0; i < 8; i++)
-        sim65_add_data_ram(s, IOCB + i * 16, iocv_empty, 16);
+    cio_clear_iocb(s);
     // Copy HTAB table
     sim65_add_data_ram(s, HATABS, hatab_default, sizeof(hatab_default));
     // Copy device handlers table
@@ -972,6 +993,7 @@ void atari_cio_init(sim65 s, int emu_dos)
     add_rts_callback(s, 0xEF9C, 1, sim_screen_opn);
     add_rts_callback(s, 0xF18F, 1, sim_screen_lct);
     add_rts_callback(s, 0xF1D8, 1, sim_screen_plt);
+    add_rts_callback(s, 0xF9A6, 1, sim_screen_sms);
     add_rts_callback(s, 0xF9C2, 1, sim_screen_drw);
     // Random OS addresses
     poke(s, LMARGN, 2); // LMARGIN
