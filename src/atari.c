@@ -23,6 +23,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 // Standard put/get character
 static int sys_get_char(void)
@@ -50,6 +51,11 @@ static void sys_put_char(int c)
         putchar('-');
     else
         putchar(c);
+}
+
+static void sys_put_char_flush(int c)
+{
+    sys_put_char(c);
     fflush(stdout);
 }
 
@@ -471,7 +477,12 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void),
     if (put_char)
         atari_put_char = put_char;
     else
-        atari_put_char = sys_put_char;
+    {
+        if(isatty(fileno(stdout)))
+            atari_put_char = sys_put_char_flush;
+        else
+            atari_put_char = sys_put_char;
+    }
     atari_peek_char = sys_peek_char;
 
     // Add 52k of uninitialized ram, maximum possible for the Atari architecture.
