@@ -119,6 +119,7 @@ static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
+    static int read = 0;
     static int ch = 0xFF;
     static uint8_t kcodes[128] = {
 // ;    A    B    C    D    E    F    G    H    I    J    K    L    M    N    O
@@ -150,6 +151,8 @@ static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return 0xFF;
         else
         {
+            // Mark as read
+            read = 1;
             // Translate to key-code
             if (c == 0x9B)
                 ch = 0x0C;
@@ -162,6 +165,12 @@ static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     {
         // Simply write over our internal value
         ch = data;
+        // If we are clearing last character, consume a character read before
+        if (ch == 0xFF && read)
+        {
+            atari_get_char();
+            read = 0;
+        }
     }
     return 0;
 }
