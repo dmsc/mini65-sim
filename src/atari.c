@@ -186,6 +186,11 @@ static int sim_overwrite_dosvec(sim65 s, struct sim65_reg *regs, unsigned addr, 
     return 0;
 }
 
+static int sim_os_exit(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    return sim65_err_call_ret;
+}
+
 static void atari_bios_init(sim65 s)
 {
     // Adds 32 bytes of zeroed RAM at $80
@@ -200,6 +205,11 @@ static void atari_bios_init(sim65 s)
     // Simulate RTCLOK
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_read);
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_write);
+    // Add callbacks to some of OS vectors
+    add_rts_callback(s, 0xE471, 1, sim_os_exit);    // BLKBDV
+    add_rts_callback(s, 0xE474, 1, sim_os_exit);    // WARMSV
+    add_rts_callback(s, 0xE477, 1, sim_os_exit);    // COLDSV
+
     // Random OS addresses
     poke(s, 8, 0); // WARM START
     poke(s, 17, 0x80); // BREAK key not pressed
