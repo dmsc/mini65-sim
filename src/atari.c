@@ -180,6 +180,12 @@ static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 #define LOW_RAM  (0x0700)       // Reserved to the OS up to 0x0700 (1.75k)
 #define VID_RAM  (0xC000)       // Video RAM from 0xC000) (4k reserved for video)
 
+static int sim_overwrite_dosvec(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    sim65_dprintf(s, "writing OS ZP memory $%04x", addr);
+    return 0;
+}
+
 static void atari_bios_init(sim65 s)
 {
     // Adds 32 bytes of zeroed RAM at $80
@@ -198,6 +204,7 @@ static void atari_bios_init(sim65 s)
     poke(s, 8, 0); // WARM START
     poke(s, 17, 0x80); // BREAK key not pressed
     dpoke(s, 10, 0xFFFF); // DOSVEC, go to DOS vector, use $FFFF as simulation return
+    sim65_add_callback_range(s, 0x10, 2, sim_overwrite_dosvec, sim65_cb_write);
     dpoke(s, 14, 0x800); // APPHI, lowest usable RAM area
     dpoke(s, 0x2e5, APP_RAM); // MEMTOP
     dpoke(s, 0x2e7, LOW_RAM); // MEMLO
