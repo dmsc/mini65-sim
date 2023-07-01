@@ -326,6 +326,7 @@ void atari_sio_init(sim65 s)
 
 static int sio_emu_read_sector(sim65 s, int sect, int addr)
 {
+    poke(s, 0x302, 0x52);
     poke(s, 0x304, addr & 0xFF);
     poke(s, 0x305, addr >> 8);
     poke(s, 0x30A, sect & 0xFF);
@@ -340,9 +341,15 @@ enum sim65_error atari_sio_boot(sim65 s)
     // Set boot flag to 0
     poke(s, 0x09, 0);
     poke(s, 0x244, 0xFF);
+    // LiteDOS needs this to be set
+    poke(s, 0x20E, 0xE477 & 0xFF);
+    poke(s, 0x20F, 0xE477 >> 8);
     // Disk boot:
     //  - Init disk SIO: Call DINITV
     e = sim_DINITV(s, 0, 0, 0);
+    //  - Read status from drive:
+    poke(s, 0x302, 0x53);
+    e = sim65_call(s, 0, 0xE453);
     //  - Read sector 1 to $400
     if (sio_emu_read_sector(s, 1, 0x400))
         return sim65_err_user;
@@ -373,6 +380,7 @@ enum sim65_error atari_sio_boot(sim65 s)
     if (e)
         return e;
     // Call dosini
+    sim65_dprintf(s, "DOS loaded, call DOSINI at $%0x", dpeek(s, 0x0C));
     e = sim65_call(s, 0, dpeek(s, 0xC));
     if (e)
         return e;
@@ -380,6 +388,7 @@ enum sim65_error atari_sio_boot(sim65 s)
     poke(s, 0x09, 1);
     poke(s, 0x244, 0);
     // Call dosvec
+    sim65_dprintf(s, "DOS initialized, call DOSVEC at $%0x", dpeek(s, 0x0A));
     e = sim65_call(s, 0, dpeek(s, 0xA));
     return e;
 }

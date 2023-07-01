@@ -233,6 +233,7 @@ static const unsigned char devhand_emudos[] = {
 #define ICBLHZ (0x29)  //         ;1-byte high buffer length
 #define ICAX1Z (0x2A)  //         ;AUXILIARY INFORMATION FIRST BYTE
 #define ICAX2Z (0x2B)  //         ;1-byte second auxiliary information
+#define ICSPRZ (0x2C)  //         ;HANDLE address
 #define ICIDNO (0x2E)  //         ;IOCB NUMBER X 16
 #define CIOCHR (0x2F)  //         ;CHARACTER BYTE FOR CURRENT OPERATION
 #define IOCB  (0x0340) //         ;I/O control block
@@ -297,11 +298,14 @@ const char *cio_cmd_name(int cmd)
 
 static int cio_store(sim65 s, struct sim65_reg *regs)
 {
+    int inum = peek(s, ICIDNO);
+    // Restore X from ICIDNO
+    regs->x = inum;
     // Store status from Y
     poke(s, peek(s, ICSTAZ), regs->y);
     // Copy ZIOCB back
     for (int i = 0; i < 12; i++)
-        poke(s, IOCB + regs->x + i, peek(s, ZIOCB + i));
+        poke(s, IOCB + inum + i, peek(s, ZIOCB + i));
     // Set flags
     if (regs->y & 0x80)
         sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
@@ -328,7 +332,10 @@ static void call_devtab(sim65 s, struct sim65_reg *regs, int fn)
     if (fn == DEVR_PUT)
         poke(s, CIOCHR, regs->a);
 
-    sim65_call(s, regs, 1 + dpeek(s, devtab + 2 * fn));
+    unsigned addr = dpeek(s, devtab + 2 * fn);
+    dpoke(s, ICSPRZ, addr);
+    regs->x = peek(s, ICIDNO);
+    sim65_call(s, regs, 1 + addr);
 
     if (fn == DEVR_GET)
         poke(s, CIOCHR, regs->a);
@@ -387,6 +394,7 @@ static int cio_init_open(sim65 s, struct sim65_reg *regs)
 
 static void cio_fix_length(sim65 s, struct sim65_reg *regs)
 {
+    regs->x = peek(s, ICIDNO);
     dpoke(s, ICBLLZ, dpeek(s, regs->x + ICBLL) - dpeek(s, ICBLLZ));
     dpoke(s, ICBALZ, dpeek(s, regs->x + ICBAL));
 }
@@ -551,8 +559,8 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     unsigned hid  = peek(s, ICHIDZ);
     unsigned com  = peek(s, ICCOMZ);
 
-    sim65_dprintf(s, "CIO #$%02x (%02x), $%02x (%s), $%04x", regs->x, hid,
-                  com, cio_cmd_name(com), dpeek(s, ICBLLZ));
+    sim65_dprintf(s, "CIO #$%02x (%02x), $%02x (%s), $%04x $%04x", regs->x, hid,
+                  com, cio_cmd_name(com), dpeek(s, ICBALZ), dpeek(s, ICBLLZ));
 
     // Error out on invalid command
     if (com < 3)
