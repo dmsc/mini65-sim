@@ -26,21 +26,29 @@
 #include <unistd.h>
 
 // Standard put/get character
-static int sys_get_char(void)
+static int sys_proc_char(int c)
 {
-    int c   = getchar();
     if (c == '\n')
         c = 0x9B;
+    else if(c == EOF)
+    {
+        // Reopen STDIN on EOF, as many Atari programs
+        // assume you can always read from E: and K:
+        freopen("/dev/tty", "rw", stdin);
+    }
     return c;
+}
+
+static int sys_get_char(void)
+{
+    return sys_proc_char(getchar());
 }
 
 static int sys_peek_char(void)
 {
     int c   = getchar();
     ungetc(c, stdin);
-    if (c == '\n')
-        c = 0x9B;
-    return c;
+    return sys_proc_char(c);
 }
 
 static void sys_put_char(int c)
