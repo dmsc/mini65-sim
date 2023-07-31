@@ -1587,7 +1587,7 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
         return;
     // Allocate labels if not already done
     if (!s->labels)
-        s->labels = (char *)calloc(65536, 32);
+        s->labels = (char *)calloc(MAXRAM, 32);
     char *l = get_label(s, addr);
     strncpy(l, lbl, 31);
     l[31] = 0;
@@ -1632,7 +1632,7 @@ uint64_t sim65_get_cycles(const sim65 s)
 
 struct sim65_profile sim65_get_profile_info(const sim65 s)
 {
-    struct sim65_profile r;
+    struct sim65_profile r = { .max = MAXRAM };
     r.cycle_count = s->prof.cycles;
     r.branch_taken = s->prof.branch;
     r.extra_cycles = s->prof.extra;

@@ -73,7 +73,7 @@ static void store_prof(const char *fname, sim65 s)
     }
     struct sim65_profile pdata = sim65_get_profile_info(s);
     uint64_t max_count = 1000;
-    for (unsigned i=0; i<65536; i++)
+    for (unsigned i=0; i<pdata.max; i++)
         if (pdata.cycle_count[i] > max_count)
             max_count = pdata.cycle_count[i];
     int digits = 0;
@@ -83,7 +83,7 @@ static void store_prof(const char *fname, sim65 s)
         max_count /= 10;
     }
     char buf[256];
-    for (unsigned i=0; i<65536; i++)
+    for (unsigned i=0; i<pdata.max; i++)
         if (pdata.cycle_count[i])
         {
             fprintf(f, "%*" PRIu64 " %04X %s", digits, pdata.cycle_count[i], i,
