@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAXRAM (0x10000)
+#define MAXRAM (0x20000)
 
 // Memory status codes
 #define ms_undef    1
@@ -1733,4 +1733,61 @@ void sim65_set_profiling(const sim65 s, int set)
 const char *sim65_get_label(const sim65 s, uint16_t addr)
 {
     return get_label(s, addr);
+}
+
+// memswap from CCAN
+#define MEMSWAP_TMP_SIZE	256
+static void memswap(void *a, void *b, size_t n)
+{
+    uint8_t *ap = a;
+    uint8_t *bp = b;
+    uint8_t tmp[MEMSWAP_TMP_SIZE];
+
+    while( n >= MEMSWAP_TMP_SIZE )
+    {
+        memcpy(tmp, bp, MEMSWAP_TMP_SIZE);
+        memcpy(bp, ap, MEMSWAP_TMP_SIZE);
+        memcpy(ap, tmp, MEMSWAP_TMP_SIZE);
+
+        ap += MEMSWAP_TMP_SIZE;
+        bp += MEMSWAP_TMP_SIZE;
+        n -= MEMSWAP_TMP_SIZE;
+    }
+    if( n )
+    {
+        memcpy(tmp, bp, n);
+        memcpy(bp, ap, n);
+        memcpy(ap, tmp, n);
+    }
+}
+#define aswap(arr, a, b, n) \
+    memswap((arr) + a, (arr) + b, sizeof(arr[0]) * n)
+
+int sim65_swap_bank(sim65 s, uint16_t main_address, uint32_t bank_address, uint16_t size)
+{
+    // Area must be inside memory
+    if( main_address + size > 0x10000 || bank_address + size > MAXRAM )
+        return 0;
+    // Ignore swapping same addresses
+    if( main_address == bank_address )
+        return 1;
+    // And can't overlap
+    if( main_address < bank_address && main_address + size > bank_address )
+        return 0;
+    if( bank_address < main_address && bank_address + size > main_address )
+        return 0;
+    // Swap all data
+    aswap(s->mem, main_address, bank_address, size);
+    aswap(s->mems, main_address, bank_address, size);
+    aswap(s->cb_read, main_address, bank_address, size);
+    aswap(s->cb_write, main_address, bank_address, size);
+    aswap(s->cb_exec, main_address, bank_address, size);
+    if( s->do_prof )
+    {
+        aswap(s->prof.cycles, main_address, bank_address, size);
+        aswap(s->prof.branch, main_address, bank_address, size);
+        aswap(s->prof.extra, main_address, bank_address, size);
+        aswap(s->prof.mflag, main_address, bank_address, size);
+    }
+    return 1;
 }

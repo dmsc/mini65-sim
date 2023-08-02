@@ -84,7 +84,32 @@ static int sim_pokey(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_pia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    // addr & 0x03
+    int reg = addr & 0x03;
+    // Implement 128K memory (Atari 130XE):
+    if (reg == 0x01) // PORTB
+    {
+        // This does not emulate PBCTL, assuming the direction bits are
+        // correctly setup.
+        static uint8_t state = 0xFF;
+        if (data == sim65_cb_read)
+            return state;
+        else
+        {
+            if (!(data & 0x1))
+                sim65_dprintf(s, "PIA: ROM banking not implemented");
+            int pre_bank = (state & 0x10) ? 1 : 4 + ((state >> 2) & 3);
+            int new_bank = (data & 0x10) ? 1 : 4 + ((data >> 2) & 3);
+            if (pre_bank != new_bank)
+            {
+                sim65_dprintf(s, "PIA: setting bank %d from %d", new_bank, pre_bank);
+                // Swap out old bank, swap in new bank
+                sim65_swap_bank(s, 0x4000, pre_bank * 0x4000, 0x4000);
+                sim65_swap_bank(s, 0x4000, new_bank * 0x4000, 0x4000);
+            }
+            state = data;
+            return 0;
+        }
+    }
     if (data == sim65_cb_read)
         sim65_dprintf(s, "PIA read $%04x", addr);
     else

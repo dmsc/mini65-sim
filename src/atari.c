@@ -521,6 +521,8 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void),
 
     // Add 52k of uninitialized ram, maximum possible for the Atari architecture.
     sim65_add_ram(s, 0, MAX_RAM);
+    // Add 4 banks of 16K (130XE).
+    sim65_add_ram(s, 0x10000, 0x10000);
     // Add hardware handlers
     atari_hardware_init(s);
     // Add ROM handlers

@@ -224,3 +224,9 @@ char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr);
 /// Checks if the instruction at address is a branch.
 /// @returns 1 if at address there is a branch, 0 otherwise.
 int sim65_ins_is_branch(const sim65 s, uint16_t addr);
+
+/// Banks in/out a region of memory.
+/// This function swaps a part of the memory space from one address to another,
+/// it is used to implement banking by swapping real memory (bellow address
+/// $10000) with memory over that range, normally inaccesible from the CPU.
+int sim65_swap_bank(sim65 s, uint16_t main_address, uint32_t bank_address, uint16_t size);
