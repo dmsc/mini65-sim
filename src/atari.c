@@ -188,6 +188,17 @@ static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 #define LOW_RAM  (0x0700)       // Reserved to the OS up to 0x0700 (1.75k)
 #define VID_RAM  (0xC000)       // Video RAM from 0xC000) (4k reserved for video)
 
+static int sim_timer_flag(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    return 0;
+}
+
+static int sim_os_vector(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+{
+    sim65_dprintf(s, "call to unimplemented OS vector $%04x", addr);
+    return 0;
+}
+
 static int sim_overwrite_dosvec(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     sim65_dprintf(s, "writing OS ZP memory $%04x", addr);
@@ -214,9 +225,27 @@ static void atari_bios_init(sim65 s)
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_read);
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_write);
     // Add callbacks to some of OS vectors
+    add_rts_callback(s, 0xE450, 1, sim_os_vector);  // DISKIV
+    // add_rts_callback(s, 0xE453, 1, sim_os_vector);  // DSKINV
+    // add_rts_callback(s, 0xE456, 1, sim_os_vector);  // CIOV
+    // add_rts_callback(s, 0xE459, 1, sim_os_vector);  // SIOV
+    add_rts_callback(s, 0xE45C, 1, sim_os_vector);  // SETVBV
+    add_rts_callback(s, 0xE45F, 1, sim_os_vector);  // SYSVBV
+    add_rts_callback(s, 0xE462, 1, sim_os_vector);  // XITVBV
+    // add_rts_callback(s, 0xE465, 1, sim_os_vector);  // SIOINV
+    add_rts_callback(s, 0xE468, 1, sim_os_vector);  // SENDEV
+    add_rts_callback(s, 0xE46B, 1, sim_os_vector);  // INTINV
+    // add_rts_callback(s, 0xE46E, 1, sim_os_vector);  // CIOINV
     add_rts_callback(s, 0xE471, 1, sim_os_exit);    // BLKBDV
     add_rts_callback(s, 0xE474, 1, sim_os_exit);    // WARMSV
     add_rts_callback(s, 0xE477, 1, sim_os_exit);    // COLDSV
+    add_rts_callback(s, 0xE47A, 1, sim_os_vector);  // RBLOKV
+    add_rts_callback(s, 0xE47D, 1, sim_os_vector);  // CSOPIV
+
+    // Timers
+    sim65_add_callback_range(s, 0x22A, 1, sim_timer_flag, sim65_cb_read);
+    sim65_add_callback_range(s, 0x22C, 1, sim_timer_flag, sim65_cb_read);
+    sim65_add_callback_range(s, 0x22E, 1, sim_timer_flag, sim65_cb_read);
 
     // Random OS addresses
     poke(s, 8, 0); // WARM START
