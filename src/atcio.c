@@ -302,7 +302,7 @@ static int cio_store(sim65 s, struct sim65_reg *regs)
     // Restore X from ICIDNO
     regs->x = inum;
     // Store status from Y
-    poke(s, peek(s, ICSTAZ), regs->y);
+    poke(s, ICSTAZ, regs->y);
     // Copy ZIOCB back
     for (int i = 0; i < 12; i++)
         poke(s, IOCB + inum + i, peek(s, ZIOCB + i));
