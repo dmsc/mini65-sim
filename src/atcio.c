@@ -343,10 +343,10 @@ static void call_devtab(sim65 s, struct sim65_reg *regs, int fn)
 
 static const char *cio_fname(sim65 s)
 {
-    static char buf[16];
+    static char buf[48];
     unsigned adr = dpeek(s, ICBALZ);
     int i;
-    for(i = 0; i < 15; i++)
+    for(i = 0; i < 47; i++)
     {
         uint8_t c = peek(s, adr + i);
         if (c < '!' || c > 'z')
