@@ -529,7 +529,7 @@ static const struct
     { 0, 0 }
 };
 
-void atari_init(sim65 s, int load_labels, int (*get_char)(void),
+void atari_init(sim65 s, int (*get_char)(void),
                 void (*put_char)(int), int emu_dos)
 {
     // Init callbacks
@@ -559,10 +559,12 @@ void atari_init(sim65 s, int load_labels, int (*get_char)(void),
     atari_cio_init(s, emu_dos);
     atari_sio_init(s);
     // Load labels
-    if (load_labels)
+    for (int i = 0; 0 != atari_labels[i].lbl; i++)
     {
-        for (int i = 0; 0 != atari_labels[i].lbl; i++)
-            sim65_lbl_add(s, atari_labels[i].addr, atari_labels[i].lbl);
+        int addr = atari_labels[i].addr;
+        const char *l = sim65_get_label(s, addr);
+        if (!l || !*l)
+            sim65_lbl_add(s, addr, atari_labels[i].lbl);
     }
 }
 

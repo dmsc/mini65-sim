@@ -21,7 +21,7 @@
 
 // Init bios callbacks, optionally passing a callback to print a
 // character and read a character.
-void atari_init(sim65 s, int load_labels, int (*get_char)(void),
+void atari_init(sim65 s, int (*get_char)(void),
                 void (*put_char)(int), int emu_dos);
 // Load (and RUN) XEX file
 enum sim65_error atari_xex_load(sim65 s, const char *name);

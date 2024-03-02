@@ -41,7 +41,8 @@ static void print_help(void)
                     "            If no executable is given, boots from this image.\n"
                     " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
                     " -t <file>: Store simulation trace into file\n"
-                    " -l <file>: Loads label file, used in simulation trace\n"
+                    " -l <file>: Loads label file, used in simulation trace. With multiple\n"
+                    "            label files loaded, last one takes precedence.\n"
                     " -r <addr>: Loads rom at give address instead of XEX file\n"
                     " -p <file>: Store profile information into file\n"
                     " -P <file>: Read/write binary profile data to file, use to consolidate\n"
@@ -160,7 +161,7 @@ int main(int argc, char **argv)
     unsigned rom = 0;
     int raw_io = 0;
     int emu_dos = 1;
-    const char *lblname = 0, *profname = 0, *profdata = 0, *load_img = 0;
+    const char *profname = 0, *profdata = 0, *load_img = 0;
 
     prog_name = argv[0];
     s = sim65_new();
@@ -204,7 +205,7 @@ int main(int argc, char **argv)
                 rom = strtol(optarg, 0, 0);
                 break;
             case 'l': // label file
-                lblname = optarg;
+                sim65_lbl_load(s, optarg);
                 break;
             case 'p': // profile
                 profname = optarg;
@@ -225,15 +226,11 @@ int main(int argc, char **argv)
     else if (!load_img)
         print_error("missing filename");
 
-    // Load labels file
-    if (lblname)
-        sim65_lbl_load(s, lblname);
-
     // Initialize Atari emu
     if( raw_io )
-        atari_init(s, lblname != 0, raw_get_char, raw_put_char, emu_dos);
+        atari_init(s, raw_get_char, raw_put_char, emu_dos);
     else
-        atari_init(s, lblname != 0, 0, 0, emu_dos);
+        atari_init(s, 0, 0, emu_dos);
 
     // Load disk image
     if (load_img)
