@@ -263,7 +263,8 @@ int main(int argc, char **argv)
     }
     else if (fname)
     {
-        e = atari_xex_load(s, fname);
+        // Load file without checking
+        e = atari_xex_load(s, fname, 0);
         if (e == sim65_err_user)
             exit_error("error reading binary file");
     }

@@ -24,7 +24,7 @@
 void atari_init(sim65 s, int (*get_char)(void),
                 void (*put_char)(int), int emu_dos);
 // Load (and RUN) XEX file
-enum sim65_error atari_xex_load(sim65 s, const char *name);
+enum sim65_error atari_xex_load(sim65 s, const char *name, int check);
 // Load ROM file
 enum sim65_error atari_rom_load(sim65 s, int addr, const char *name);
 // Boot from a loaded disk image

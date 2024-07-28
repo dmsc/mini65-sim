@@ -568,7 +568,7 @@ void atari_init(sim65 s, int (*get_char)(void),
     }
 }
 
-enum sim65_error atari_xex_load(sim65 s, const char *name)
+enum sim65_error atari_xex_load(sim65 s, const char *name, int check)
 {
     const uint16_t RUNAD = 0x2E0;
     const uint16_t INITAD = 0x2E2;
@@ -587,6 +587,12 @@ enum sim65_error atari_xex_load(sim65 s, const char *name)
         int c = getc(f);
         if (c == EOF)
         {
+            if(check && state != 7)
+            {
+                sim65_eprintf(s, "%S: truncated file", name);
+                fclose(f);
+                return sim65_err_user;
+            }
             vec = dpeek(s, RUNAD);
             if (vec != 0)
             {
