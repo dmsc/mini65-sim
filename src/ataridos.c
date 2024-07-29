@@ -264,7 +264,38 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 unsigned ax3 = peek(s, regs->x + ICAX3);
                 unsigned ax4 = peek(s, regs->x + ICAX4);
                 unsigned ax5 = peek(s, regs->x + ICAX5);
-                sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
+                if (!fhand[chn])
+                {
+                    sim65_dprintf(s, "DISK POINT: %d closed.", chn);
+                    regs->y = 133;
+                }
+                else
+                {
+                    sim65_dprintf(s, "DISK POINT: $%02x.%02x.%02x", ax5, ax4, ax3);
+                    long offset = (ax5 << 16) | (ax4 << 8) | ax3;
+                    fseek(fhand[chn], offset, SEEK_SET);
+                    regs->y = 1;
+                }
+            }
+            else if (cmd == 38)
+            {
+                if (!fhand[chn])
+                {
+                    sim65_dprintf(s, "DISK NOTE: %d closed.", chn);
+                    regs->y = 133;
+                }
+                else
+                {
+                    long offset = ftell(fhand[chn]);
+                    regs->y = 1;
+                    unsigned ax3 = offset & 0xFF;
+                    unsigned ax4 = (offset >> 8) & 0xFF;
+                    unsigned ax5 = (offset >> 16) & 0xFF;
+                    poke(s, regs->x + ICAX3, ax3);
+                    poke(s, regs->x + ICAX4, ax4);
+                    poke(s, regs->x + ICAX5, ax5);
+                    sim65_dprintf(s, "DISK NOTE = $%02x.%02x.%02x", ax5, ax4, ax3);
+                }
             }
             return 0;
         case DEVR_INIT:
