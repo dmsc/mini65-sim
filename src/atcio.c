@@ -19,10 +19,9 @@
 /* Implements Atari CIO emulation */
 #include "atcio.h"
 #include "atari.h"
-#include "dosfname.h"
-#include <errno.h>
+#include "ataridos.h"
+#include "ciodev.h"
 #include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
 
 // Define callback functions
@@ -154,54 +153,20 @@ static unsigned dpeek(sim65 s, unsigned addr)
 
 // HATAB defs
 #define HATABS (0x031A) // Device handlers table
-#define EDITRV (0xE400)
-#define SCRENV (0xE410)
-#define KEYBDV (0xE420)
-#define PRINTV (0xE430)
-#define CASETV (0xE440)
-#define DISKDV (0xE3F0) // Emulated DOS, does not exists in real hardware!
-#define EDITOR_OFFSET (6) // NOTE: Editor must be entry at offset "6"
-#define HATABS_ENTRY(a, b) (a), LO(b), HI(b)
+
 static const unsigned char hatab_default[] = {
     HATABS_ENTRY('P', PRINTV),
     HATABS_ENTRY('C', CASETV),
     HATABS_ENTRY('E', EDITRV), // NOTE: Editor must be entry at offset "6"
     HATABS_ENTRY('S', SCRENV),
     HATABS_ENTRY('K', KEYBDV),
-    HATABS_ENTRY('D', DISKDV),
+    HATABS_ENTRY(0, 0),
     HATABS_ENTRY(0, 0),
     HATABS_ENTRY(0, 0),
     HATABS_ENTRY(0, 0),
     HATABS_ENTRY(0, 0),
     HATABS_ENTRY(0, 0)
 };
-
-// Fake routines addresses:
-// Bases
-#define EDITR_BASE 0xE500
-#define SCREN_BASE 0xE508
-#define KEYBD_BASE 0xE510
-#define PRINT_BASE 0xE518
-#define CASET_BASE 0xE520
-#define DISKD_BASE 0xE528
-// Offsets
-#define DEVR_OPEN (0)           // 3
-#define DEVR_CLOSE (1)          // 12
-#define DEVR_GET (2)            // 4,5,6,7
-#define DEVR_PUT (3)            // 8.9,10,11
-#define DEVR_STATUS (4)         // 13
-#define DEVR_SPECIAL (5)        // 14 and up
-#define DEVR_INIT (6)
-
-#define DEVH_E(a) LO(a - 1), HI(a - 1)
-#define DEVH_TAB(a)                      \
-    DEVH_E(a##_BASE + DEVR_OPEN),        \
-        DEVH_E(a##_BASE + DEVR_CLOSE),   \
-        DEVH_E(a##_BASE + DEVR_GET),     \
-        DEVH_E(a##_BASE + DEVR_PUT),     \
-        DEVH_E(a##_BASE + DEVR_STATUS),  \
-        DEVH_E(a##_BASE + DEVR_SPECIAL), \
-        0x20, DEVH_E(a##_BASE + DEVR_INIT + 1), 0x00
 
 // Standard Handlers
 static const unsigned char devhand_tables[] = {
@@ -212,47 +177,10 @@ static const unsigned char devhand_tables[] = {
     DEVH_TAB(CASET)
 };
 
-// Emulated DOS handler
-static const unsigned char devhand_emudos[] = {
-    DEVH_TAB(DISKD)
-};
-
 // IOCB defs
 #define CIOV (0xE456)
 #define CIOERR (0xE530) // FIXME: CIO error return routine
 #define ZIOCB  (0x20)  //         ; ZP copy of IOCB
-#define ICHIDZ (0x20)  //         ;HANDLER INDEX NUMBER (FF = IOCB FREE)
-#define ICDNOZ (0x21)  //         ;DEVICE NUMBER (DRIVE NUMBER)
-#define ICCOMZ (0x22)  //         ;COMMAND CODE
-#define ICSTAZ (0x23)  //         ;STATUS OF LAST IOCB ACTION
-#define ICBALZ (0x24)  //         ;BUFFER ADDRESS LOW BYTE
-#define ICBAHZ (0x25)  //         ;1-byte high buffer address
-#define ICPTLZ (0x26)  //         ;PUT BYTE ROUTINE ADDRESS -1
-#define ICPTHZ (0x27)  //         ;1-byte high PUT-BYTE routine address
-#define ICBLLZ (0x28)  //         ;BUFFER LENGTH LOW BYTE
-#define ICBLHZ (0x29)  //         ;1-byte high buffer length
-#define ICAX1Z (0x2A)  //         ;AUXILIARY INFORMATION FIRST BYTE
-#define ICAX2Z (0x2B)  //         ;1-byte second auxiliary information
-#define ICSPRZ (0x2C)  //         ;HANDLE address
-#define ICIDNO (0x2E)  //         ;IOCB NUMBER X 16
-#define CIOCHR (0x2F)  //         ;CHARACTER BYTE FOR CURRENT OPERATION
-#define IOCB  (0x0340) //         ;I/O control block
-#define ICHID (0x0340) //         ;HANDLER INDEX NUMBER (FF=IOCB FREE)
-#define ICDNO (0x0341) //         ;DEVICE NUMBER (DRIVE NUMBER)
-#define ICCOM (0x0342) //         ;COMMAND CODE
-#define ICSTA (0x0343) //         ;STATUS OF LAST IOCB ACTION
-#define ICBAL (0x0344) //         ;1-byte low buffer address
-#define ICBAH (0x0345) //         ;1-byte high buffer address
-#define ICPTL (0x0346) //         ;1-byte low PUT-BYTE routine address - 1
-#define ICPTH (0x0347) //         ;1-byte high PUT-BYTE routine address - 1
-#define ICBLL (0x0348) //         ;1-byte low buffer length
-#define ICBLH (0x0349) //         ;1-byte high buffer length
-#define ICAX1 (0x034A) //         ;1-byte first auxiliary information
-#define ICAX2 (0x034B) //         ;1-byte second auxiliary information
-#define ICAX3 (0x034C) //         ;1-byte third auxiliary information
-#define ICAX4 (0x034D) //         ;1-byte fourth auxiliary information
-#define ICAX5 (0x034E) //         ;1-byte fifth auxiliary information
-#define ICSPR (0x034F) //         ;SPARE BYTE
 
 static const unsigned char iocv_empty[16] = {
     0xFF, 0, 0, 0, // HID, DNO, COM, STA
@@ -832,140 +760,20 @@ static int sim_CASET(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     }
 }
 
-static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
+int atari_cio_add_hatab(sim65 s, char name, uint16_t address)
 {
-    // Store one file handle for each CIO channel
-    static FILE *fhand[16];
-
-    // We need IOCB data
-    unsigned chn  = (regs->x >> 4);
-    unsigned cmd  = peek(s, ICCOMZ);
-    unsigned badr = dpeek(s, ICBALZ);
-    unsigned dno  = peek(s, ICDNOZ);
-    unsigned ax1  = peek(s, ICAX1Z);
-    unsigned ax2  = peek(s, ICAX2Z);
-
-    switch (addr & 7)
+    // Search an empty entry
+    for (uint16_t i = HATABS; i < IOCB; i += 3)
     {
-        case DEVR_OPEN:
+        if (peek(s, i) == 0)
         {
-            // Decode file name
-            char fname[256];
-            int i;
-            // Skip 'D#:'
-            badr++;
-            if (dno == (peek(s, badr) - '0'))
-                badr++;
-            if (peek(s, badr) == ':')
-                badr++;
-            // Translate rest of filename
-            for (i = 0; i < 250; i++)
-            {
-                int c = peek(s, badr++);
-                if (!c || c == 0x9b)
-                    break;
-                fname[i] = c;
-            }
-            fname[i] = 0;
-            sim65_dprintf(s, "DISK OPEN #%d, %d, %d, '%s'", chn, ax1, ax2, fname);
-            // Test if not already open
-            if (fhand[chn])
-            {
-                sim65_dprintf(s, "DISK: Internal error, %d already open.", chn);
-                fclose(fhand[chn]);
-                fhand[chn] = 0;
-            }
-            // Open Flag:
-            const char *flags = 0;
-            switch (ax1)
-            {
-                case 4: // Open for read
-                    flags = "rb";
-                    break;
-                case 8: // Open for write
-                    flags = "wb";
-                    break;
-                case 9: // Open for append
-                    flags = "ab";
-                    break;
-                case 12: // Open for update
-                    flags = "r+b";
-                    break;
-                case 6:
-                    // TODO: Directory read
-                default:
-                    regs->y = 0xA8;
-                    return 0;
-            }
-            fhand[chn] = dosfopen(fname, flags);
-            if (!fhand[chn])
-            {
-                sim65_dprintf(s, "DISK OPEN: error %s", strerror(errno));
-                if (errno == ENOENT)
-                    regs->y = 170;
-                else if (errno == ENOSPC)
-                    regs->y = 162;
-                else if (errno == EACCES)
-                    regs->y = 167;
-                else
-                    regs->y = 139;
-            }
-            else
-                regs->y = 1;
+            // Install our entry
+            poke(s, i, name);
+            dpoke(s, i + 1, address);
             return 0;
         }
-        case DEVR_CLOSE:
-            if (fhand[chn])
-            {
-                fclose(fhand[chn]);
-                fhand[chn] = 0;
-            }
-            regs->y = 1;
-            return 0;
-        case DEVR_GET:
-            if (!fhand[chn])
-            {
-                sim65_dprintf(s, "DISK GET: Internal error, %d closed.", chn);
-                regs->y = 133;
-            }
-            else
-            {
-                int c   = fgetc(fhand[chn]);
-                regs->y = 1;
-                if (c == EOF)
-                    regs->y = 136;
-                else
-                    regs->a = c;
-            }
-            return 0;
-        case DEVR_PUT:
-            if (!fhand[chn])
-            {
-                sim65_dprintf(s, "DISK PUT: Internal error, %d closed.", chn);
-                regs->y = 133;
-            }
-            else
-            {
-                fputc(regs->a, fhand[chn]);
-                regs->y = 1;
-            }
-            return 0;
-        case DEVR_STATUS:
-            return 0;
-        case DEVR_SPECIAL:
-            if (cmd == 37)
-            {
-                unsigned ax3 = peek(s, regs->x + ICAX3);
-                unsigned ax4 = peek(s, regs->x + ICAX4);
-                unsigned ax5 = peek(s, regs->x + ICAX5);
-                sim65_dprintf(s, "POINT %d/%d/%d", ax3, ax4, ax5);
-            }
-            return 0;
-        case DEVR_INIT:
-            return 0;
-        default:
-            return cb_error(s, addr);
     }
+    return 1;
 }
 
 void atari_cio_init(sim65 s, int emu_dos)
@@ -984,7 +792,7 @@ void atari_cio_init(sim65 s, int emu_dos)
     // Copy device handlers table
     sim65_add_data_rom(s, EDITRV, devhand_tables, sizeof(devhand_tables));
     if (emu_dos)
-        sim65_add_data_rom(s, DISKDV, devhand_emudos, sizeof(devhand_emudos));
+        atari_dos_init(s);
     // Init IOCV 0, editor
     poke(s, ICHID, EDITOR_OFFSET);
     poke(s, ICAX1, 0x0C);
@@ -995,7 +803,6 @@ void atari_cio_init(sim65 s, int emu_dos)
     add_rts_callback(s, KEYBD_BASE, 8, sim_KEYBD);
     add_rts_callback(s, PRINT_BASE, 8, sim_PRINT);
     add_rts_callback(s, CASET_BASE, 8, sim_CASET);
-    add_rts_callback(s, DISKD_BASE, 8, sim_DISKD);
     add_rts_callback(s, CIOERR, 1, sim_CIOERR);
     // Simulate direct calls to XL OS ROM
     add_rts_callback(s, 0xEF9C, 1, sim_screen_opn);

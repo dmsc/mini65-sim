@@ -19,12 +19,5 @@
 
 #include "sim65.h"
 
-// Init CIO emulation
-void atari_cio_init(sim65 s, int emu_dos);
-
-// Adds an entry to the device handler table
-int atari_cio_add_hatab(sim65 s, char name, uint16_t address);
-
-extern int (*atari_get_char)(void);  /* Reads a character from standard input */
-extern int (*atari_peek_char)(void); /* See if there is a character available to read */
-extern void (*atari_put_char)(int);  /* Put a character to standard output */
+// Init DOS emulation
+void atari_dos_init(sim65 s);

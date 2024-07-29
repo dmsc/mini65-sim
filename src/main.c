@@ -30,7 +30,7 @@ static FILE *trace_file;
 
 static void print_help(void)
 {
-    fprintf(stderr, "Usage: %s [options] <filename>\n"
+    fprintf(stderr, "Usage: %s [options] <filename> [command line]\n"
                     "Options:\n"
                     " -h: Show this help\n"
                     " -d: Print debug messages to standard error\n"
@@ -219,7 +219,7 @@ int main(int argc, char **argv)
     }
 
     const char *fname = 0;
-    if (optind + 1 < argc)
+    if (optind + 1 < argc && !emu_dos)
         print_error("only one filename allowed");
     else if (optind < argc)
         fname = argv[optind];
@@ -231,6 +231,14 @@ int main(int argc, char **argv)
         atari_init(s, raw_get_char, raw_put_char, emu_dos);
     else
         atari_init(s, 0, 0, emu_dos);
+
+    // Add command line
+    if (emu_dos && fname && optind + 1 < argc)
+    {
+        atari_dos_add_cmdline(s, fname);
+        for (int i = optind + 1; i < argc; i++)
+            atari_dos_add_cmdline(s, argv[i]);
+    }
 
     // Load disk image
     if (load_img)

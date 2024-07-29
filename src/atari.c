@@ -556,8 +556,8 @@ void atari_init(sim65 s, int (*get_char)(void),
     atari_hardware_init(s);
     // Add ROM handlers
     atari_bios_init(s);
-    atari_cio_init(s, emu_dos);
     atari_sio_init(s);
+    atari_cio_init(s, emu_dos);
     // Load labels
     for (int i = 0; 0 != atari_labels[i].lbl; i++)
     {
