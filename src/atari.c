@@ -529,16 +529,15 @@ static const struct
     { 0, 0 }
 };
 
-void atari_init(sim65 s, int (*get_char)(void),
-                void (*put_char)(int), int emu_dos)
+void atari_init(sim65 s, emu_options *opts)
 {
     // Init callbacks
-    if (get_char)
-        atari_get_char = get_char;
+    if (opts && opts->get_char)
+        atari_get_char = opts && opts->get_char ? opts->get_char : sys_get_char;
     else
         atari_get_char = sys_get_char;
-    if (put_char)
-        atari_put_char = put_char;
+    if (opts && opts->put_char)
+        atari_put_char = opts->put_char;
     else
     {
         if(isatty(fileno(stdout)))
@@ -557,7 +556,7 @@ void atari_init(sim65 s, int (*get_char)(void),
     // Add ROM handlers
     atari_bios_init(s);
     atari_sio_init(s);
-    atari_cio_init(s, emu_dos);
+    atari_cio_init(s, opts && opts->emu_dos);
     // Load labels
     for (int i = 0; 0 != atari_labels[i].lbl; i++)
     {

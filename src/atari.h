@@ -19,10 +19,17 @@
 
 #include "sim65.h"
 
-// Init bios callbacks, optionally passing a callback to print a
-// character and read a character.
-void atari_init(sim65 s, int (*get_char)(void),
-                void (*put_char)(int), int emu_dos);
+typedef struct {
+    // Callback for character input to the simulator
+    int (*get_char)(void);
+    // Callback for character output from the simulator
+    void (*put_char)(int);
+    // Flag to initialize the DOS emulation
+    int emu_dos;
+} emu_options;
+
+// Init bios callbacks, with given options.
+void atari_init(sim65 s, emu_options *opts);
 // Load (and RUN) XEX file
 enum sim65_error atari_xex_load(sim65 s, const char *name, int check);
 // Load ROM file

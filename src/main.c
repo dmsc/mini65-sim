@@ -160,10 +160,9 @@ int main(int argc, char **argv)
     sim65 s;
     int opt;
     unsigned rom = 0;
-    int raw_io = 0;
-    int emu_dos = 1;
     const char *profname = 0, *profdata = 0, *load_img = 0;
     const char *rootpath = 0;
+    emu_options opts     = { .get_char = 0, .put_char = 0, .emu_dos = 1 };
 
     prog_name = argv[0];
     s = sim65_new();
@@ -182,13 +181,14 @@ int main(int argc, char **argv)
                 sim65_set_debug(s, sim65_debug_messages);
                 break;
             case 'D': // no dos
-                emu_dos = 0;
+                opts.emu_dos = 0;
                 break;
             case 'I': // load image
                 load_img = optarg;
                 break;
             case 'b': // binary/raw
-                raw_io = 1;
+                opts.get_char = raw_get_char;
+                opts.put_char = raw_put_char;
                 break;
             case 'e': // error level
                 if (!strcmp(optarg, "n") || !strcmp(optarg, "none"))
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
     }
 
     const char *fname = 0;
-    if (optind + 1 < argc && !emu_dos)
+    if (optind + 1 < argc && !opts.emu_dos)
         print_error("only one filename allowed");
     else if (optind < argc)
         fname = argv[optind];
@@ -232,20 +232,17 @@ int main(int argc, char **argv)
         print_error("missing filename");
 
     // Initialize Atari emu
-    if( raw_io )
-        atari_init(s, raw_get_char, raw_put_char, emu_dos);
-    else
-        atari_init(s, 0, 0, emu_dos);
+    atari_init(s, &opts);
 
     if (rootpath)
     {
-        if (!emu_dos)
+        if (!opts.emu_dos)
             print_error("root path is only valid for emulated DOS");
         atari_dos_set_root(s, rootpath);
     }
 
     // Add command line
-    if (emu_dos && fname && optind + 1 < argc)
+    if (opts.emu_dos && fname && optind + 1 < argc)
     {
         atari_dos_add_cmdline(s, fname);
         for (int i = optind + 1; i < argc; i++)
