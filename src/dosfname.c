@@ -37,26 +37,29 @@ static int get_case(const char *str)
     return 1;
 }
 
-FILE *dosfopen(const char *name, const char *mode)
+FILE *dosfopen(const char *root, const char *name, const char *mode)
 {
+    // Build the full name
+    char fullname[strlen(root) + strlen(name) + 1];
+
     // Easy, check if file already exists
     struct stat st;
-    if(0 == stat(name, &st))
-        return fopen(name, mode);
+    sprintf(fullname, "%s/%s", root, name);
+    if(0 == stat(fullname, &st))
+        return fopen(fullname, mode);
 
     // Not, check if file with lower case exists:
-    char *lname = strdup(name);
-    FILE *ret;
-    str_lcase(lname);
-    if(0 == stat(lname, &st))
-        ret = fopen(lname, mode);
+    str_lcase(fullname + strlen(root));
+    if(0 == stat(fullname, &st))
+        return fopen(fullname, mode);
     // No, check if there are lower-case letters in the file name
     else if( get_case(name) )
+    {
         // Yes, use filename as is
-        ret = fopen(name, mode);
+        sprintf(fullname, "%s/%s", root, name);
+        return fopen(fullname, mode);
+    }
     else
         // No, convert to lowercase
-        ret = fopen(lname, mode);
-    free(lname);
-    return ret;
+        return fopen(fullname, mode);
 }

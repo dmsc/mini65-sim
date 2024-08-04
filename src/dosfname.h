@@ -19,5 +19,5 @@
 
 #include <stdio.h>
 
-FILE *dosfopen(const char *name, const char *mode);
+FILE *dosfopen(const char *root, const char *name, const char *mode);
 

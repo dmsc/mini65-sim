@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <string.h>
 
+static const char *root_path = ".";
+
 // Misc routines
 static unsigned peek(sim65 s, unsigned addr)
 {
@@ -203,7 +205,7 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                     regs->y = 0xA8;
                     return 0;
             }
-            fhand[chn] = dosfopen(fname, flags);
+            fhand[chn] = dosfopen(root_path, fname, flags);
             if (!fhand[chn])
             {
                 sim65_dprintf(s, "DISK OPEN: error %s", strerror(errno));
@@ -360,6 +362,14 @@ void atari_dos_add_cmdline(sim65 s, const char *cmd)
             poke(s, DOS_LBUF + len, *cmd++);
         poke(s, DOS_LBUF + len, 0x9B);
     }
+}
+
+void atari_dos_set_root(sim65 s, const char *path)
+{
+    if (path)
+        root_path = path;
+    else
+        root_path = ".";
 }
 
 void atari_dos_init(sim65 s)

@@ -35,3 +35,5 @@ void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb);
 int atari_load_image(sim65 s, const char *file_name);
 // Adds command line parameters to emulated DOS
 void atari_dos_add_cmdline(sim65 s, const char *cmd);
+// Sets a base path for all file access in emulated DOS
+void atari_dos_set_root(sim65 s, const char *path);

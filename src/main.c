@@ -37,6 +37,7 @@ static void print_help(void)
                     " -b: Use binary for standard input and output, the default is to\n"
                     "     translate ATASCII to ASCII and vice-versa\n"
                     " -D: Don´t emulate DOS device.\n"
+                    " -R <path>: Set a root path for emulated DOS device.\n"
                     " -I <file>: Loads a disk image for SIO emulation.\n"
                     "            If no executable is given, boots from this image.\n"
                     " -e <lvl> : Sets the error level to 'none', 'mem' or 'full'\n"
@@ -162,13 +163,14 @@ int main(int argc, char **argv)
     int raw_io = 0;
     int emu_dos = 1;
     const char *profname = 0, *profdata = 0, *load_img = 0;
+    const char *rootpath = 0;
 
     prog_name = argv[0];
     s = sim65_new();
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:D")) != -1)
+    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:DR:")) != -1)
     {
         switch (opt)
         {
@@ -213,6 +215,9 @@ int main(int argc, char **argv)
             case 'P': // profile data
                 profdata = optarg;
                 break;
+            case 'R': // root path
+                rootpath = optarg;
+                break;
             default:
                 print_error(0);
         }
@@ -231,6 +236,13 @@ int main(int argc, char **argv)
         atari_init(s, raw_get_char, raw_put_char, emu_dos);
     else
         atari_init(s, 0, 0, emu_dos);
+
+    if (rootpath)
+    {
+        if (!emu_dos)
+            print_error("root path is only valid for emulated DOS");
+        atari_dos_set_root(s, rootpath);
+    }
 
     // Add command line
     if (emu_dos && fname && optind + 1 < argc)
