@@ -16,10 +16,13 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "hw.h"
+#include "atari.h"
 #include "sim65.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <sys/time.h>
 
 static int sim_exec_error(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
@@ -117,17 +120,64 @@ static int sim_pia(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
+// Get the vcount counter
+static int64_t atari_hw_vcount(sim65 s, int flags)
+{
+    if (flags & atari_opt_cycletime)
+    {
+        // Each scan line has 114 cycles, with 9 cycles for refresh, so we
+        // simulate 105 cycles/frame.
+        int64_t scanlines = sim65_get_cycles(s) / 105;
+
+        // In NTSC, there are 262 scan lines per frame, in PAL there are
+        // 312 scan lines per frame, the scan line counter only counts even
+        // lines.
+        return scanlines / 2;
+    }
+    else
+    {
+        // Get current time in seconds:
+        struct timeval tv;
+        gettimeofday(&tv, 0);
+        double time   = (tv.tv_sec + tv.tv_usec * 0.000001);
+        // Scale depending on PAL/NTSC setting
+        if (flags & atari_opt_pal)
+            time = time * (15556.55 * 0.5); // PAL
+        else
+            time = time * (15699.75 * 0.5); // NTSC
+        if (sizeof(long) == sizeof(int64_t))
+            return lrint(time);
+        else
+            return llrint(time);
+    }
+}
+
+// Get the frame counter
+int64_t atari_hw_framenum(sim65 s)
+{
+    int flags = atari_get_flags(s);
+    int64_t vcount = atari_hw_vcount(s, flags);
+
+    if (flags & atari_opt_pal)
+        return vcount / 156;
+    else
+        return vcount / 131;
+}
+
 static int sim_antic(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    static int vcount;
     // addr & 0x0F
     if (data == sim65_cb_read)
     {
         sim65_dprintf(s, "ANTIC read $%04x", addr);
         if( (addr & 0xFF) == 0x0B )
         {
-            vcount = (vcount + 1) % 132;
-            return vcount;
+            int flags = atari_get_flags(s);
+            int64_t vcount = atari_hw_vcount(s, flags);
+            if (flags & atari_opt_pal)
+                return vcount % 156;
+            else
+                return vcount % 131;
         }
     }
     else

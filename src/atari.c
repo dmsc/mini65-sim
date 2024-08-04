@@ -20,10 +20,11 @@
 #include "atsio.h"
 #include "mathpack.h"
 #include "hw.h"
-#include <math.h>
 #include <stdio.h>
-#include <sys/time.h>
+#include <string.h>
 #include <unistd.h>
+
+enum atari_opts_flags atari_flags = 0;
 
 // Standard put/get character
 static int sys_proc_char(int c)
@@ -95,12 +96,10 @@ static unsigned dpeek(sim65 s, unsigned addr)
 
 static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    static int startTime;
+    static int startTime = 0;
 
-    // Get current time
-    struct timeval tv;
-    gettimeofday(&tv, 0);
-    int curTime   = (int)(fmod(tv.tv_sec * 60 + tv.tv_usec * 0.00006, 16777216.));
+    // Get low 24 bits of the frame counter
+    int curTime   = atari_hw_framenum(s) & 0xFFFFFF;
     int atariTime = curTime - startTime;
 
     if (data == sim65_cb_read)
@@ -529,8 +528,15 @@ static const struct
     { 0, 0 }
 };
 
+int atari_get_flags(sim65 s)
+{
+    return atari_flags;
+}
+
 void atari_init(sim65 s, emu_options *opts)
 {
+    // Init flags
+    atari_flags = opts ? opts->flags : 0;
     // Init callbacks
     if (opts && opts->get_char)
         atari_get_char = opts && opts->get_char ? opts->get_char : sys_get_char;
@@ -556,7 +562,7 @@ void atari_init(sim65 s, emu_options *opts)
     // Add ROM handlers
     atari_bios_init(s);
     atari_sio_init(s);
-    atari_cio_init(s, opts && opts->emu_dos);
+    atari_cio_init(s, 0 == (atari_flags & atari_opt_no_dos));
     // Load labels
     for (int i = 0; 0 != atari_labels[i].lbl; i++)
     {
@@ -714,4 +720,30 @@ enum sim65_error atari_boot_image(sim65 s)
 int atari_load_image(sim65 s, const char *file_name)
 {
     return atari_sio_load_image(s, file_name);
+}
+
+int atari_add_option(emu_options *opt, const char *str)
+{
+    // Parse option string
+    for (const char *p = str; *p;)
+    {
+        // Search end of option
+        const char *e = p;
+        while (*e && !strchr(" \t,;:", *e))
+            e++;
+        // Check value
+        size_t n = e - p;
+        if (!strncasecmp("pal", p, n))
+            opt->flags |= atari_opt_pal;
+        else if (!strncasecmp("ntsc", p, n))
+            opt->flags &= ~atari_opt_pal;
+        else if (!strncasecmp("cycletime", p, n))
+            opt->flags |= atari_opt_cycletime;
+        else if (!strncasecmp("realtime", p, n))
+            opt->flags &= ~atari_opt_cycletime;
+        else
+            return 1;
+        p = e + (0 != *e);
+    }
+    return 0;
 }

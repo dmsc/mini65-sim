@@ -37,6 +37,7 @@ static void print_help(void)
                     " -b: Use binary for standard input and output, the default is to\n"
                     "     translate ATASCII to ASCII and vice-versa\n"
                     " -D: Don´t emulate DOS device.\n"
+                    " -o <opt>:  Set advanced emulation options.\n"
                     " -R <path>: Set a root path for emulated DOS device.\n"
                     " -I <file>: Loads a disk image for SIO emulation.\n"
                     "            If no executable is given, boots from this image.\n"
@@ -47,7 +48,14 @@ static void print_help(void)
                     " -r <addr>: Loads rom at give address instead of XEX file\n"
                     " -p <file>: Store profile information into file\n"
                     " -P <file>: Read/write binary profile data to file, use to consolidate\n"
-                    "            more than one profile run\n",
+                    "            more than one profile run\n"
+                    "\n"
+                    "Advanced Options, given with '-o':\n"
+                    " ntsc      : Emulate NTSC machine times (60Hz) (default)\n"
+                    " pal       : Emulate PAL machine times (50Hz)\n"
+                    " realtime  : Base time on real elapsed times (default)\n"
+                    " cycletime : Base time on number of CPU cycles\n"
+                    ,
             prog_name);
 }
 
@@ -162,14 +170,14 @@ int main(int argc, char **argv)
     unsigned rom = 0;
     const char *profname = 0, *profdata = 0, *load_img = 0;
     const char *rootpath = 0;
-    emu_options opts     = { .get_char = 0, .put_char = 0, .emu_dos = 1 };
+    emu_options opts     = { .get_char = 0, .put_char = 0, .flags = 0 };
 
     prog_name = argv[0];
     s = sim65_new();
     if (!s)
         exit_error("internal error");
 
-    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:DR:")) != -1)
+    while ((opt = getopt(argc, argv, "t:dbhr:l:e:p:P:I:DR:o:")) != -1)
     {
         switch (opt)
         {
@@ -181,7 +189,7 @@ int main(int argc, char **argv)
                 sim65_set_debug(s, sim65_debug_messages);
                 break;
             case 'D': // no dos
-                opts.emu_dos = 0;
+                opts.flags |= atari_opt_no_dos;
                 break;
             case 'I': // load image
                 load_img = optarg;
@@ -189,6 +197,10 @@ int main(int argc, char **argv)
             case 'b': // binary/raw
                 opts.get_char = raw_get_char;
                 opts.put_char = raw_put_char;
+                break;
+            case 'o': // advanced options
+                if (atari_add_option(&opts, optarg))
+                    print_error("invalid advanced options");
                 break;
             case 'e': // error level
                 if (!strcmp(optarg, "n") || !strcmp(optarg, "none"))
@@ -224,7 +236,7 @@ int main(int argc, char **argv)
     }
 
     const char *fname = 0;
-    if (optind + 1 < argc && !opts.emu_dos)
+    if (optind + 1 < argc && (opts.flags & atari_opt_no_dos))
         print_error("only one filename allowed");
     else if (optind < argc)
         fname = argv[optind];
@@ -236,13 +248,13 @@ int main(int argc, char **argv)
 
     if (rootpath)
     {
-        if (!opts.emu_dos)
+        if (opts.flags & atari_opt_no_dos)
             print_error("root path is only valid for emulated DOS");
         atari_dos_set_root(s, rootpath);
     }
 
     // Add command line
-    if (opts.emu_dos && fname && optind + 1 < argc)
+    if (fname && optind + 1 < argc)
     {
         atari_dos_add_cmdline(s, fname);
         for (int i = optind + 1; i < argc; i++)

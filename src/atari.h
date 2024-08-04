@@ -19,15 +19,28 @@
 
 #include "sim65.h"
 
+// Option flags
+enum atari_opts_flags
+{
+    // Flag to skip the DOS emulation
+    atari_opt_no_dos = 1,
+    // Flag for PAL or NTSC timings
+    atari_opt_pal = 2,
+    // Flag for real-time or cycle based time
+    atari_opt_cycletime = 4
+};
+
 typedef struct {
     // Callback for character input to the simulator
     int (*get_char)(void);
     // Callback for character output from the simulator
     void (*put_char)(int);
-    // Flag to initialize the DOS emulation
-    int emu_dos;
+    // Emulation flags
+    int flags;
 } emu_options;
 
+// Parse option flags
+int atari_add_option(emu_options *opt, const char *str);
 // Init bios callbacks, with given options.
 void atari_init(sim65 s, emu_options *opts);
 // Load (and RUN) XEX file
@@ -44,3 +57,5 @@ int atari_load_image(sim65 s, const char *file_name);
 void atari_dos_add_cmdline(sim65 s, const char *cmd);
 // Sets a base path for all file access in emulated DOS
 void atari_dos_set_root(sim65 s, const char *path);
+// Get current emulation flags
+int atari_get_flags(sim65 s);

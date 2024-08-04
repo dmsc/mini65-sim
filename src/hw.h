@@ -17,7 +17,9 @@
  */
 
 #pragma once
+#include <stdint.h>
 
 typedef struct sim65s *sim65;
 
 void atari_hardware_init(sim65 s);
+int64_t atari_hw_framenum(sim65 s);
