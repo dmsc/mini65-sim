@@ -55,6 +55,8 @@ static void print_help(void)
                     " pal       : Emulate PAL machine times (50Hz)\n"
                     " realtime  : Base time on real elapsed times (default)\n"
                     " cycletime : Base time on number of CPU cycles\n"
+                    " fastmath  : Use Altirra fast math pack (default)\n"
+                    " atarimath : Use original Atari math pack\n"
                     ,
             prog_name);
 }

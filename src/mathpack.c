@@ -17,11 +17,15 @@
  */
 #include "mathpack.h"
 #include "mathpack_bin.h"
+#include "mathpack_atari.h"
 
-int fp_init(sim65 s)
+int fp_init(sim65 s, int orig)
 {
-    // Simply loads Altirra mathpack into correct address.
-    sim65_add_data_rom(s, 0xD800, mathpack_bin, mathpack_bin_len);
+    // Simply loads the math-pack into correct address.
+    if(!orig)
+        sim65_add_data_rom(s, 0xD800, mathpack_bin, mathpack_bin_len);
+    else
+        sim65_add_data_rom(s, 0xD800, mathpack_atari, mathpack_atari_len);
     return 0;
 }
 

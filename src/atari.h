@@ -27,7 +27,9 @@ enum atari_opts_flags
     // Flag for PAL or NTSC timings
     atari_opt_pal = 2,
     // Flag for real-time or cycle based time
-    atari_opt_cycletime = 4
+    atari_opt_cycletime = 4,
+    // Flag for using the original Atari math pack
+    atari_opt_atari_mathpack = 8
 };
 
 typedef struct {

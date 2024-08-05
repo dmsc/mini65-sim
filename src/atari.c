@@ -216,7 +216,7 @@ static void atari_bios_init(sim65 s)
     // Adds a ROM at 0xE000, to support reads to ROM start
     sim65_add_data_rom(s, 0xE000, (unsigned char*)"\x60", 1);
     // Math Package
-    fp_init(s);
+    fp_init(s, atari_flags & atari_opt_atari_mathpack);
     // Simulate keyboard character "CH"
     sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_read);
     sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_write);
@@ -741,6 +741,10 @@ int atari_add_option(emu_options *opt, const char *str)
             opt->flags |= atari_opt_cycletime;
         else if (!strncasecmp("realtime", p, n))
             opt->flags &= ~atari_opt_cycletime;
+        else if (!strncasecmp("atarimath", p, n))
+            opt->flags |= atari_opt_atari_mathpack;
+        else if (!strncasecmp("fastmath", p, n))
+            opt->flags &= ~atari_opt_atari_mathpack;
         else
             return 1;
         p = e + (0 != *e);
