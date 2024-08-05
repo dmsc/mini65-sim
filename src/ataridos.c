@@ -385,7 +385,8 @@ void atari_dos_init(sim65 s)
     dpoke(s, COMTAB_BASE + 4, DOS_CRNAME);
     dpoke(s, COMTAB_BASE + 6, DOS_DIVIO);
     dpoke(s, COMTAB_BASE + 8, DOS_XDIVIO);
-    poke(s, COMTAB_BASE + 10, 0);
+    sim65_add_zeroed_ram(s, COMTAB_BASE + 32, 94);
+    poke(s, COMTAB_BASE + 10, 2);
     poke(s, COMTAB_BASE + 63, 'D');
     poke(s, COMTAB_BASE + 64, ':');
     poke(s, COMTAB_BASE + 65, 0x9B);
