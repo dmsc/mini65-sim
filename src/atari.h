@@ -32,7 +32,8 @@ enum atari_opts_flags
     atari_opt_atari_mathpack = 8
 };
 
-typedef struct {
+typedef struct
+{
     // Callback for character input to the simulator
     int (*get_char)(void);
     // Callback for character output from the simulator

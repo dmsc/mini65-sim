@@ -288,8 +288,8 @@ static int sim_DISKD(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                 }
                 else
                 {
-                    long offset = ftell(fhand[chn]);
-                    regs->y = 1;
+                    long offset  = ftell(fhand[chn]);
+                    regs->y      = 1;
                     unsigned ax3 = offset & 0xFF;
                     unsigned ax4 = (offset >> 8) & 0xFF;
                     unsigned ax5 = (offset >> 16) & 0xFF;

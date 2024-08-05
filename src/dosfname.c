@@ -24,15 +24,15 @@
 // Transforms a string to lowercase, not using locales
 static void str_lcase(char *str)
 {
-    for(;*str;str++)
-        if(*str >= 'A' && *str <= 'Z')
+    for (; *str; str++)
+        if (*str >= 'A' && *str <= 'Z')
             *str = *str + ('a' - 'A');
 }
 
 static int get_case(const char *str)
 {
-    for(;*str;str++)
-        if(*str >= 'a' && *str <= 'z')
+    for (; *str; str++)
+        if (*str >= 'a' && *str <= 'z')
             return 0;
     return 1;
 }
@@ -45,15 +45,15 @@ FILE *dosfopen(const char *root, const char *name, const char *mode)
     // Easy, check if file already exists
     struct stat st;
     sprintf(fullname, "%s/%s", root, name);
-    if(0 == stat(fullname, &st))
+    if (0 == stat(fullname, &st))
         return fopen(fullname, mode);
 
     // Not, check if file with lower case exists:
     str_lcase(fullname + strlen(root));
-    if(0 == stat(fullname, &st))
+    if (0 == stat(fullname, &st))
         return fopen(fullname, mode);
     // No, check if there are lower-case letters in the file name
-    else if( get_case(name) )
+    else if (get_case(name))
     {
         // Yes, use filename as is
         sprintf(fullname, "%s/%s", root, name);

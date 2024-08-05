@@ -38,13 +38,13 @@
 #define HATABS_ENTRY(a, b) (a), LO(b), HI(b)
 
 // Offsets in handler table:  function
-#define DEVR_OPEN (0) //      3
-#define DEVR_CLOSE (1) //     12
-#define DEVR_GET (2) //       4,5,6,7
-#define DEVR_PUT (3) //       8.9,10,11
-#define DEVR_STATUS (4) //    13
-#define DEVR_SPECIAL (5) //   14 and up
-#define DEVR_INIT (6)
+#define DEVR_OPEN    (0) // 3
+#define DEVR_CLOSE   (1) // 12
+#define DEVR_GET     (2) // 4,5,6,7
+#define DEVR_PUT     (3) // 8.9,10,11
+#define DEVR_STATUS  (4) // 13
+#define DEVR_SPECIAL (5) // 14 and up
+#define DEVR_INIT    (6)
 
 #define DEVH_E(a) LO(a - 1), HI(a - 1)
 #define DEVH_TAB(a)                      \
@@ -86,7 +86,7 @@
 #define CIOCHR (0x2F) //        CHARACTER BYTE FOR CURRENT OPERATION
 
 // Main IOCB
-#define IOCB (0x0340) //        I/O control block
+#define IOCB  (0x0340) //       I/O control block
 #define ICHID (0x0340) //       HANDLER INDEX NUMBER (FF=IOCB FREE)
 #define ICDNO (0x0341) //       DEVICE NUMBER (DRIVE NUMBER)
 #define ICCOM (0x0342) //       COMMAND CODE

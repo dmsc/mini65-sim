@@ -16,16 +16,15 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "mathpack.h"
-#include "mathpack_bin.h"
 #include "mathpack_atari.h"
+#include "mathpack_bin.h"
 
 int fp_init(sim65 s, int orig)
 {
     // Simply loads the math-pack into correct address.
-    if(!orig)
+    if (!orig)
         sim65_add_data_rom(s, 0xD800, mathpack_bin, mathpack_bin_len);
     else
         sim65_add_data_rom(s, 0xD800, mathpack_atari_bin, mathpack_atari_bin_len);
     return 0;
 }
-

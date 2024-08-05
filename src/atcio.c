@@ -39,12 +39,13 @@ static int atari_printf(const char *format, ...)
     size = vsnprintf(buf, 255, format, ap);
     va_end(ap);
     for (char *p = buf; *p; p++)
-        atari_put_char( 0xFF & (*p) );
+        atari_put_char(0xFF & (*p));
     return size;
 }
 
 // Screen routines callback
-enum scr_command {
+enum scr_command
+{
     scr_cmd_graphics,
     scr_cmd_locate,
     scr_cmd_plot,
@@ -56,23 +57,20 @@ static void sys_screen(sim65 s, enum scr_command cmd, int x, int y, int data,
                        struct sim65_reg *r)
 {
     static int sx = 40, sy = 24, numc = 256;
-    static uint8_t scr[320*200]; // Simulated screen
-    static const int gr_sx[] = { 40, 20, 20, 40, 80, 80, 160, 160,
-                                320, 80, 80, 80, 40, 40, 160, 160 };
-    static const int gr_sy[] = { 24,  24,  12,  24, 48, 48,  96,  96,
-                                192, 192, 192, 192, 24, 12, 192, 192 };
-    static const int gr_numc[] = { 256, 256, 256,  4,   2,   4, 2, 4,
-                                     2,  16,  16, 16, 256, 256, 2, 4 };
+    static uint8_t scr[320 * 200]; // Simulated screen
+    static const int gr_sx[]   = { 40, 20, 20, 40, 80, 80, 160, 160, 320, 80, 80, 80, 40, 40, 160, 160 };
+    static const int gr_sy[]   = { 24, 24, 12, 24, 48, 48, 96, 96, 192, 192, 192, 192, 24, 12, 192, 192 };
+    static const int gr_numc[] = { 256, 256, 256, 4, 2, 4, 2, 4, 2, 16, 16, 16, 256, 256, 2, 4 };
 
     switch (cmd)
     {
         case scr_cmd_graphics:
             sim65_dprintf(s, "SCREEN: open mode %d", 0x10 ^ data);
             atari_printf("SCREEN: set graphics %d%s%s\n", data & 15,
-                         data & 16 ? " with text window": "",
-                         data & 32 ? " don't clear" : "" );
+                         data & 16 ? " with text window" : "",
+                         data & 32 ? " don't clear" : "");
             if (0 == (data & 32))
-                memset(scr, 0, 320*200);
+                memset(scr, 0, 320 * 200);
             sx   = gr_sx[data & 15];
             sy   = gr_sy[data & 15];
             numc = gr_numc[data & 15];
@@ -81,13 +79,13 @@ static void sys_screen(sim65 s, enum scr_command cmd, int x, int y, int data,
         case scr_cmd_locate:
             sim65_dprintf(s, "SCREEN: get (locate) @(%d, %d)", x, y);
             atari_printf("SCREEN: locate %d,%d\n", x, y);
-            if ( x >= 0 && x < sx && y >= 0 && y < sx )
+            if (x >= 0 && x < sx && y >= 0 && y < sx)
                 r->a = scr[y * 320 + x];
             break;
         case scr_cmd_plot:
             sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, data);
             atari_printf("SCREEN: plot %d,%d  color %d\n", x, y, data % numc);
-            if ( x >= 0 && x < sx && y >= 0 && y < sx )
+            if (x >= 0 && x < sx && y >= 0 && y < sx)
                 scr[y * 320 + x] = data % numc;
             break;
         case scr_cmd_drawto:
@@ -101,10 +99,10 @@ static void sys_screen(sim65 s, enum scr_command cmd, int x, int y, int data,
             sim65_dprintf(s, "SCREEN: special (fillto) @(%d, %d) color: %d  fcolor:%d",
                           x, y, data & 0xFF, data >> 8);
             atari_printf("SCREEN: fill to %d,%d  color %d, fill color %d\n",
-                    x, y, (data & 0xFF) % numc, (data >>8) % numc );
+                         x, y, (data & 0xFF) % numc, (data >> 8) % numc);
             break;
     }
-    if (x < 0 || x >= sx || y < 0 || y >= sy )
+    if (x < 0 || x >= sx || y < 0 || y >= sy)
         r->y = -1;
     else
         r->y = 0;
@@ -178,27 +176,28 @@ static const unsigned char devhand_tables[] = {
 };
 
 // IOCB defs
-#define CIOV (0xE456)
+#define CIOV   (0xE456)
 #define CIOERR (0xE530) // FIXME: CIO error return routine
-#define ZIOCB  (0x20)  //         ; ZP copy of IOCB
+#define ZIOCB  (0x20)   // ; ZP copy of IOCB
 
 static const unsigned char iocv_empty[16] = {
-    0xFF, 0, 0, 0, // HID, DNO, COM, STA
+    0xFF, 0, 0, 0,                        // HID, DNO, COM, STA
     0, 0, LO(CIOERR - 1), HI(CIOERR - 1), // BAL, BAH, PTL, PTH
-    0, 0, 0, 0, // BLL, BLH, AX1, AX2
-    0, 0, 0, 0 // AX3, AX4, AX5, SPR
+    0, 0, 0, 0,                           // BLL, BLH, AX1, AX2
+    0, 0, 0, 0                            // AX3, AX4, AX5, SPR
 };
 
 const char *cio_cmd_name(int cmd)
 {
-    struct {
+    struct
+    {
         int num;
         const char *name;
     } cmds[] = {
-        {  3, "OPEN" },
-        {  5, "GETREC" },
-        {  7, "GETCHR" },
-        {  9, "PUTREC" },
+        { 3, "OPEN" },
+        { 5, "GETREC" },
+        { 7, "GETCHR" },
+        { 9, "PUTREC" },
         { 11, "PUTCHR" },
         { 12, "CLOSE" },
         { 13, "STATUS" },
@@ -254,7 +253,7 @@ static int cio_error(sim65 s, struct sim65_reg *regs, const char *err, unsigned 
 static void call_devtab(sim65 s, struct sim65_reg *regs, int fn)
 {
     // Get device table
-    unsigned hid  = peek(s, ICHIDZ);
+    unsigned hid    = peek(s, ICHIDZ);
     unsigned devtab = dpeek(s, 1 + hid + HATABS);
 
     if (fn == DEVR_PUT)
@@ -274,7 +273,7 @@ static const char *cio_fname(sim65 s)
     static char buf[48];
     unsigned adr = dpeek(s, ICBALZ);
     int i;
-    for(i = 0; i < 47; i++)
+    for (i = 0; i < 47; i++)
     {
         uint8_t c = peek(s, adr + i);
         if (c < '!' || c > 'z')
@@ -290,8 +289,8 @@ static int cio_init_open(sim65 s, struct sim65_reg *regs)
 {
     // Get handle and call open routine.
     unsigned badr = dpeek(s, ICBALZ);
-    unsigned dev = peek(s, badr);
-    unsigned num = peek(s, badr + 1) - '0';
+    unsigned dev  = peek(s, badr);
+    unsigned num  = peek(s, badr + 1) - '0';
 
     sim65_dprintf(s, "CIO open '%s'", cio_fname(s));
 
@@ -329,8 +328,8 @@ static void cio_fix_length(sim65 s, struct sim65_reg *regs)
 
 static int cio_do_command(sim65 s, struct sim65_reg *regs)
 {
-    unsigned com  = peek(s, ICCOMZ);
-    unsigned ax1  = peek(s, ICAX1Z);
+    unsigned com = peek(s, ICCOMZ);
+    unsigned ax1 = peek(s, ICAX1Z);
 
     // Assume no error
     regs->y = 1;
@@ -484,8 +483,8 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     for (int i = 0; i < 12; i++)
         poke(s, ZIOCB + i, peek(s, regs->x + IOCB + i));
 
-    unsigned hid  = peek(s, ICHIDZ);
-    unsigned com  = peek(s, ICCOMZ);
+    unsigned hid = peek(s, ICHIDZ);
+    unsigned com = peek(s, ICCOMZ);
 
     sim65_dprintf(s, "CIO #$%02x (%02x), $%02x (%s), $%04x $%04x", regs->x, hid,
                   com, cio_cmd_name(com), dpeek(s, ICBALZ), dpeek(s, ICBLLZ));
@@ -587,16 +586,16 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             if (regs->a == 0x9B || col == dpeek(s, RMARGN))
             {
                 col = peek(s, LMARGN) - 1;
-                if( row < 24 )
-                    row ++;
+                if (row < 24)
+                    row++;
             }
             atari_put_char(regs->a);
-            col ++;
+            col++;
             dpoke(s, COLCRS, col);
             poke(s, ROWCRS, row);
             editr_last_row = row;
             editr_last_col = col;
-            regs->y = 1;
+            regs->y        = 1;
             return 0;
         }
         case DEVR_STATUS:
@@ -636,7 +635,7 @@ static int sim_screen_drw(sim65 s, struct sim65_reg *regs, unsigned addr, int da
 {
     sys_screen(s, peek(s, FILFLG) ? scr_cmd_fillto : scr_cmd_drawto,
                dpeek(s, COLCRS), peek(s, ROWCRS),
-               peek(s, ATACHR) | (peek(s, FILDAT)<<8), regs);
+               peek(s, ATACHR) | (peek(s, FILDAT) << 8), regs);
     return 0;
 }
 
@@ -649,7 +648,7 @@ static int sim_screen_lct(sim65 s, struct sim65_reg *regs, unsigned addr, int da
 static int sim_SCREN(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     // We need IOCB data
-    unsigned cmd  = peek(s, ICCOMZ);
+    unsigned cmd = peek(s, ICCOMZ);
     switch (addr & 7)
     {
         case DEVR_OPEN:
@@ -811,10 +810,9 @@ void atari_cio_init(sim65 s, int emu_dos)
     add_rts_callback(s, 0xF9A6, 1, sim_screen_sms);
     add_rts_callback(s, 0xF9C2, 1, sim_screen_drw);
     // Random OS addresses
-    poke(s, LMARGN, 2); // LMARGIN
+    poke(s, LMARGN, 2);  // LMARGIN
     poke(s, RMARGN, 39); // RMARGIN
-    poke(s, ROWCRS, 0); // ROWCRS
+    poke(s, ROWCRS, 0);  // ROWCRS
     dpoke(s, COLCRS, 2); // COLCRS
-    poke(s, 0x57, 0); // DINDEX
+    poke(s, 0x57, 0);    // DINDEX
 }
-

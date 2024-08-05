@@ -40,8 +40,10 @@
 #define DAUX1  (0x030A) // 1-byte first command auxiliary
 #define DAUX2  (0x030B) // 1-byte second command auxiliary
 
-#define CHK_READ if(!stat & 0x40) return -1
-#define CHK_WRITE if(!stat & 0x80) return -1
+#define CHK_READ \
+    if (!stat & 0x40) return -1
+#define CHK_WRITE \
+    if (!stat & 0x80) return -1
 
 // Utility functions
 static unsigned peek(sim65 s, unsigned addr)
@@ -64,7 +66,8 @@ static void poke(sim65 s, unsigned addr, unsigned char val)
  ***************************/
 
 // SIO errors
-enum {
+enum
+{
     SIO_OK    = 1,
     SIO_ETIME = 0x8A,
     SIO_ENAK  = 0x8B,
@@ -76,7 +79,8 @@ enum {
 
 // The contents of the disk image
 static uint8_t default_image_data[720 * 128];
-static struct {
+static struct
+{
     uint8_t *data;
     unsigned sec_size;
     unsigned sec_count;
@@ -118,7 +122,7 @@ int atari_sio_load_image(sim65 s, const char *file_name)
         unsigned isz = (hdr[2] << 4) | (hdr[3] << 12) | (hdr[6] << 20);
         // Some images store full size fo the first 3 sectors, others store
         // 128 bytes for those:
-        unsigned pad_size = isz % ssz == 0 ? 0 : (ssz - 128) * 3;
+        unsigned pad_size    = isz % ssz == 0 ? 0 : (ssz - 128) * 3;
         unsigned num_sectors = (isz + pad_size) / ssz;
         if (isz >= 0x1000000 || num_sectors * ssz - pad_size != isz)
         {
@@ -129,7 +133,7 @@ int atari_sio_load_image(sim65 s, const char *file_name)
         // Allocate new storage
         uint8_t *data = malloc(ssz * num_sectors);
         // Read 3 first sectors
-        for(int i = 0; i < num_sectors; i++)
+        for (int i = 0; i < num_sectors; i++)
         {
             if (1 != fread(data + ssz * i, (i < 3 && pad_size) ? 128 : ssz, 1, f))
             {
@@ -142,8 +146,8 @@ int atari_sio_load_image(sim65 s, const char *file_name)
         // Ok, copy to image
         if (disk_image.data != default_image_data)
             free(disk_image.data);
-        disk_image.data = data;
-        disk_image.sec_size = ssz;
+        disk_image.data      = data;
+        disk_image.sec_size  = ssz;
         disk_image.sec_count = num_sectors;
         sim65_dprintf(s, "loaded '%s': %d sectors of %d bytes", file_name,
                       num_sectors, ssz);
@@ -158,63 +162,63 @@ static unsigned sio_disk(sim65 s, int unit, int cmd, int stat, int addr, int len
         return SIO_ETIME;
 
     int rw = stat & 0xC0;
-    switch(cmd)
+    switch (cmd)
     {
         case 0x50: // Write
         case 0x57: // Write with verify
-            if(0x80 != rw)
+            if (0x80 != rw)
                 return SIO_ENAK;
-            if(aux < 1 || aux > disk_image.sec_count)
+            if (aux < 1 || aux > disk_image.sec_count)
                 return SIO_ENAK;
             // First 3 sectors are 128 bytes:
-            if(aux < 4 && len != 128)
+            if (aux < 4 && len != 128)
                 return SIO_ENAK;
-            if(aux > 3 && len != disk_image.sec_size)
+            if (aux > 3 && len != disk_image.sec_size)
                 return SIO_ENAK;
 
             sim65_dprintf(s, "SIO D%d write sector %d", unit, aux);
-            aux --;
-            for(int i=0; i<len; i++)
+            aux--;
+            for (int i = 0; i < len; i++)
                 disk_image.data[aux * disk_image.sec_size + i] = sim65_get_byte(s, addr + i);
             return SIO_OK;
 
         case 0x52: // Read
-            if(0x40 != rw)
+            if (0x40 != rw)
                 return SIO_ENAK;
-            if(aux < 1 || aux > disk_image.sec_count)
+            if (aux < 1 || aux > disk_image.sec_count)
                 return SIO_ENAK;
             // First 3 sectors are 128 bytes:
-            if(aux < 4 && len != 128)
+            if (aux < 4 && len != 128)
                 return SIO_ENAK;
-            if(aux > 3 && len != disk_image.sec_size)
+            if (aux > 3 && len != disk_image.sec_size)
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d read sector %d", unit, aux);
-            aux --;
+            aux--;
             sim65_add_data_ram(s, addr, &disk_image.data[aux * disk_image.sec_size], len);
             return SIO_OK;
 
         case 0x53: // Status request
-            if(0x40 != rw)
+            if (0x40 != rw)
                 return SIO_ENAK;
-            if(len != 4)
+            if (len != 4)
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d status", unit);
             uint8_t status[4] = {
-                16 + (disk_image.sec_size>128?32:0) ,     // command status - drive active
-                255,    // hardware status - all bits OK
-                224,    // format timeout - standard value
-                0       // - unused -
+                16 + (disk_image.sec_size > 128 ? 32 : 0), // command status - drive active
+                255,                                       // hardware status - all bits OK
+                224,                                       // format timeout - standard value
+                0                                          // - unused -
             };
             sim65_add_data_ram(s, addr, status, 4);
             return SIO_OK;
 
         case 0x21: // Format
-            if(0x40 != rw)
+            if (0x40 != rw)
                 return SIO_ENAK;
-            if(len != 128)
+            if (len != 128)
                 return SIO_ENAK;
             sim65_dprintf(s, "SIO D%d format", unit);
-            for(int i=0; i<len; i++)
+            for (int i = 0; i < len; i++)
                 poke(s, addr + i, 0xFF);
             return SIO_OK;
 
@@ -238,18 +242,18 @@ static int sim_SIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     unsigned daux2  = peek(s, 0x030B);
 
     sim65_dprintf(s, "SIO call"
-            " dev=%02x:%02x cmd=%02x stat=%02x buf=%04x tim=%02x len=%04x aux=%02x:%02x",
-            ddevic, dunit, dcomnd, dstats, dbuf, dtimlo, dbyt, daux1, daux2);
+                     " dev=%02x:%02x cmd=%02x stat=%02x buf=%04x tim=%02x len=%04x aux=%02x:%02x",
+                  ddevic, dunit, dcomnd, dstats, dbuf, dtimlo, dbyt, daux1, daux2);
 
     int e;
-    if(ddevic == 0x31)
+    if (ddevic == 0x31)
         e = sio_disk(s, dunit, dcomnd, dstats, dbuf, dbyt, daux1 + (daux2 << 8));
     else
         e = SIO_ETIME;
 
     regs->y = e;
     poke(s, 0x0303, e);
-    if(e != SIO_OK)
+    if (e != SIO_OK)
         sim65_set_flags(s, SIM65_FLAG_N, SIM65_FLAG_N);
     else
         sim65_set_flags(s, SIM65_FLAG_N, 0);
@@ -272,7 +276,7 @@ static int sim_DSKINV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     else
         poke(s, 0x306, 0x0F);
 
-    if (cmd == 0x53)    // status
+    if (cmd == 0x53) // status
     {
         // Initialize DBUF to DVSTAT (0x2EA), and length to 4
         poke(s, 0x304, 0xEA);
@@ -291,8 +295,8 @@ static int sim_DSKINV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 
 static int sim_DINITV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    poke(s, 0x246, 0xA0);       // format timeout
-    poke(s, 0x2D5, 0x80);       // default sector size
+    poke(s, 0x246, 0xA0); // format timeout
+    poke(s, 0x2D5, 0x80); // default sector size
     poke(s, 0x2D6, 0x00);
     return 0;
 }
@@ -312,16 +316,15 @@ void atari_sio_init(sim65 s)
     sim65_add_ram(s, DDEVIC, 11);
 
     // Initialize simulating reading of the first sector
-    poke(s, 0x300, 0x31);       // Disk
-    poke(s, 0x301, 0x01);       // #1
-    poke(s, 0x302, 0x52);       // Read
-    poke(s, 0x303, 0x40);       // input
-    poke(s, 0x304, 0x00);       // buffer = 0x400
+    poke(s, 0x300, 0x31); // Disk
+    poke(s, 0x301, 0x01); // #1
+    poke(s, 0x302, 0x52); // Read
+    poke(s, 0x303, 0x40); // input
+    poke(s, 0x304, 0x00); // buffer = 0x400
     poke(s, 0x305, 0x04);
-    poke(s, 0x306, 0x0F);       // timeout = 15
-    poke(s, 0x308, 0x80);       // size = 128
+    poke(s, 0x306, 0x0F); // timeout = 15
+    poke(s, 0x308, 0x80); // size = 128
     poke(s, 0x309, 0x00);
-
 }
 
 static int sio_emu_read_sector(sim65 s, int sect, int addr)
@@ -365,14 +368,14 @@ enum sim65_error atari_sio_boot(sim65 s)
     poke(s, 0xC, dosini & 0xFF);
     poke(s, 0xD, dosini >> 8);
     //  - Copy all 128 bytes to boot address, read rest of sectors
-    for(int i=0; i<128; i++)
+    for (int i = 0; i < 128; i++)
         poke(s, bootad + i, peek(s, 0x400 + i));
     //  - Read rest of sectors
-    for(int n = 1; n<dcount; n++)
+    for (int n = 1; n < dcount; n++)
     {
         if (sio_emu_read_sector(s, n + 1, 0x400))
             return sim65_err_user;
-        for(int i=0; i<128; i++)
+        for (int i = 0; i < 128; i++)
             poke(s, bootad + n * 0x80 + i, peek(s, 0x400 + i));
     }
     // Call boot address

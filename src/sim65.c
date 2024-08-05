@@ -35,14 +35,14 @@
 
 // Instruction lengths
 static const uint8_t ilen[256] = {
-    1,2,1,1,1,2,2,1,1,2,1,1,1,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
-    3,2,1,1,2,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
-    1,2,1,1,1,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
-    1,2,1,1,1,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
-    1,2,1,1,2,2,2,1,1,1,1,1,3,3,3,1, 2,2,1,1,2,2,2,1,1,3,1,1,1,3,1,1,
-    2,2,2,1,2,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,2,2,2,1,1,3,1,1,3,3,3,1,
-    2,2,1,1,2,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1,
-    2,2,1,1,2,2,2,1,1,2,1,1,3,3,3,1, 2,2,1,1,1,2,2,1,1,3,1,1,1,3,3,1
+    1, 2, 1, 1, 1, 2, 2, 1, 1, 2, 1, 1, 1, 3, 3, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1,
+    3, 2, 1, 1, 2, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1,
+    1, 2, 1, 1, 1, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1,
+    1, 2, 1, 1, 1, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1,
+    1, 2, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 2, 2, 2, 1, 1, 3, 1, 1, 1, 3, 1, 1,
+    2, 2, 2, 1, 2, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 2, 2, 2, 1, 1, 3, 1, 1, 3, 3, 3, 1,
+    2, 2, 1, 1, 2, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1,
+    2, 2, 1, 1, 2, 2, 2, 1, 1, 2, 1, 1, 3, 3, 3, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 3, 1, 1, 1, 3, 3, 1
 };
 
 struct sim65s
@@ -62,20 +62,21 @@ struct sim65s
     sim65_callback cb_read[MAXRAM];
     sim65_callback cb_write[MAXRAM];
     sim65_callback cb_exec[MAXRAM];
-    struct {
-        uint64_t cycles[MAXRAM];// Total number of cycles executing this instruction
-        uint64_t branch[MAXRAM];// Times this branch was taken
-        uint64_t extra[MAXRAM]; // Number of extra cycles for crossing pages
-        uint64_t mflag[MAXRAM]; // Number of times this ins actually modifies flags
-        uint64_t branch_skip;   // Number of branches skipped
-        uint64_t branch_taken;  // Number of branches taken
-        uint64_t branch_extra;  // Extra cycles per branch to other page
-        uint64_t abs_x_extra;   // Extra cycles per ABS,X crossing page
-        uint64_t abs_y_extra;   // Extra cycles per ABS,Y crossing page
-        uint64_t ind_y_extra;   // Extra cycles per (),Y crossing page
-        uint64_t instructions;  // Number of instructions
+    struct
+    {
+        uint64_t cycles[MAXRAM]; // Total number of cycles executing this instruction
+        uint64_t branch[MAXRAM]; // Times this branch was taken
+        uint64_t extra[MAXRAM];  // Number of extra cycles for crossing pages
+        uint64_t mflag[MAXRAM];  // Number of times this ins actually modifies flags
+        uint64_t branch_skip;    // Number of branches skipped
+        uint64_t branch_taken;   // Number of branches taken
+        uint64_t branch_extra;   // Extra cycles per branch to other page
+        uint64_t abs_x_extra;    // Extra cycles per ABS,X crossing page
+        uint64_t abs_y_extra;    // Extra cycles per ABS,Y crossing page
+        uint64_t ind_y_extra;    // Extra cycles per (),Y crossing page
+        uint64_t instructions;   // Number of instructions
     } prof;
-    unsigned wmem;              // Used by the profiler to detect write to memory
+    unsigned wmem; // Used by the profiler to detect write to memory
     char *labels;
 };
 
@@ -135,7 +136,7 @@ static void set_flags(sim65 s, uint8_t mask, uint8_t val)
 
 static uint8_t get_flags(sim65 s, uint8_t mask)
 {
-    if( 0 != (s->p_valid & mask) )
+    if (0 != (s->p_valid & mask))
     {
         set_error(s, sim65_err_exec_uninit, s->r.pc);
         sim65_dprintf(s, "using uninitialized flags ($%02X) at PC=$%4X",
@@ -159,10 +160,10 @@ void sim65_set_cycle_limit(sim65 s, uint64_t limit)
 
 sim65 sim65_new()
 {
-    sim65 s = (sim65)calloc(sizeof(struct sim65s), 1);
+    sim65 s       = (sim65)calloc(sizeof(struct sim65s), 1);
     s->trace_file = stderr;
-    s->r.s = 0xFF;
-    s->p_valid = 0xFF;
+    s->r.s        = 0xFF;
+    s->p_valid    = 0xFF;
     set_flags(s, 0xFF, 0x34);
     memset(s->mems, ms_undef | ms_invalid, MAXRAM * sizeof(s->mems[0]));
     return s;
@@ -271,7 +272,7 @@ void set_error(sim65 s, int e, uint16_t addr)
 {
     if (e < 0 && !s->error)
     {
-        s->error = (enum sim65_error)e;
+        s->error    = (enum sim65_error)e;
         s->err_addr = addr;
     }
 }
@@ -289,8 +290,7 @@ static inline uint8_t readPc(sim65 s)
 {
     uint16_t addr = s->r.pc;
     // Slow read if memory is undefined or invalid:
-    return likely(!(s->mems[addr] & (ms_undef | ms_invalid))) ?
-           s->mem[addr] : readPc_slow(s, addr);
+    return likely(!(s->mems[addr] & (ms_undef | ms_invalid))) ? s->mem[addr] : readPc_slow(s, addr);
 }
 
 static uint8_t readByte_slow(sim65 s, uint16_t addr)
@@ -310,7 +310,7 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
             s->wmem = 1;
             set_error(s, sim65_err_read_undef, addr);
         }
-        else if(s->mems[addr] & ms_invalid)
+        else if (s->mems[addr] & ms_invalid)
         {
             s->wmem = 1;
             set_error(s, sim65_err_read_uninit, addr);
@@ -323,17 +323,16 @@ static uint8_t readByte_slow(sim65 s, uint16_t addr)
 static inline uint8_t readByte(sim65 s, uint16_t addr)
 {
     // Slow read if memory is undefined, invalid or a callback location:
-    return likely(!(s->mems[addr] & (ms_undef | ms_invalid | ms_callback))) ?
-            s->mem[addr] : readByte_slow(s, addr);
+    return likely(!(s->mems[addr] & (ms_undef | ms_invalid | ms_callback))) ? s->mem[addr] : readByte_slow(s, addr);
 }
 
 static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
 {
-    if( ! s->mems[addr] )
+    if (!s->mems[addr])
     {
         if (val != s->mem[addr])
         {
-            s->wmem = 1;
+            s->wmem      = 1;
             s->mem[addr] = val;
         }
         return;
@@ -341,7 +340,7 @@ static void writeByte_slow(sim65 s, uint16_t addr, uint8_t val)
     s->wmem = 1;
     if (likely(!(s->mems[addr] & ~ms_invalid)))
     {
-        s->mem[addr] = val;
+        s->mem[addr]  = val;
         s->mems[addr] = 0;
     }
     else if ((s->mems[addr] & ms_callback) && s->cb_write[addr])
@@ -383,8 +382,8 @@ static int readIndY(sim65 s, unsigned addr)
         s->cycles++;
         if (s->do_prof)
         {
-            s->prof.ind_y_extra ++;
-            s->prof.extra[(s->r.pc-2) & 0xFFFF] ++;
+            s->prof.ind_y_extra++;
+            s->prof.extra[(s->r.pc - 2) & 0xFFFF]++;
         }
     }
     return readByte(s, 0xFFFF & (addr + s->r.y));
@@ -412,12 +411,12 @@ static void writeIndY(sim65 s, unsigned addr, unsigned val)
 #define FLAG_V SIM65_FLAG_V
 #define FLAG_N SIM65_FLAG_N
 
-#define SETZ(a) set_flags(s, FLAG_Z,  (a)&0xFF ? 0 : FLAG_Z)
-#define SETC(a) set_flags(s, FLAG_C,  (a) ? FLAG_C : 0)
-#define SETV(a) set_flags(s, FLAG_V,  (a) ? FLAG_V : 0)
-#define SETD(a) set_flags(s, FLAG_D,  (a) ? FLAG_D : 0)
-#define SETN(a) set_flags(s, FLAG_N,  (a)&0x80 ? FLAG_N : 0)
-#define SETI(a) set_flags(s, FLAG_I,  (a) ? FLAG_I : 0)
+#define SETZ(a) set_flags(s, FLAG_Z, (a)&0xFF ? 0 : FLAG_Z)
+#define SETC(a) set_flags(s, FLAG_C, (a) ? FLAG_C : 0)
+#define SETV(a) set_flags(s, FLAG_V, (a) ? FLAG_V : 0)
+#define SETD(a) set_flags(s, FLAG_D, (a) ? FLAG_D : 0)
+#define SETN(a) set_flags(s, FLAG_N, (a)&0x80 ? FLAG_N : 0)
+#define SETI(a) set_flags(s, FLAG_I, (a) ? FLAG_I : 0)
 #define GETC    get_flags(s, FLAG_C)
 #define GETD    get_flags(s, FLAG_D)
 
@@ -502,8 +501,8 @@ static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
         s->cycles++;
         if (s->do_prof)
         {
-            s->prof.branch[(s->r.pc-2) & 0xFFFF] ++;
-            s->prof.branch_taken ++;
+            s->prof.branch[(s->r.pc - 2) & 0xFFFF]++;
+            s->prof.branch_taken++;
         }
         uint16_t val = (s->r.pc + off) & 0xFFFF;
         if ((val & 0xFF00) != (s->r.pc & 0xFF00))
@@ -511,14 +510,14 @@ static void do_branch(sim65 s, int8_t off, uint8_t mask, int cond)
             s->cycles++;
             if (s->do_prof)
             {
-                s->prof.extra[(s->r.pc-2) & 0xFFFF] ++;
-                s->prof.branch_extra ++;
+                s->prof.extra[(s->r.pc - 2) & 0xFFFF]++;
+                s->prof.branch_extra++;
             }
         }
         s->r.pc = val;
     }
     else if (s->do_prof)
-        s->prof.branch_skip ++;
+        s->prof.branch_skip++;
 }
 
 static void do_extra_absx(sim65 s, unsigned addr)
@@ -528,8 +527,8 @@ static void do_extra_absx(sim65 s, unsigned addr)
         s->cycles++;
         if (s->do_prof)
         {
-            s->prof.extra[(s->r.pc-3) & 0xFFFF] ++;
-            s->prof.abs_x_extra ++;
+            s->prof.extra[(s->r.pc - 3) & 0xFFFF]++;
+            s->prof.abs_x_extra++;
         }
     }
 }
@@ -541,97 +540,246 @@ static void do_extra_absy(sim65 s, unsigned addr)
         s->cycles++;
         if (s->do_prof)
         {
-            s->prof.extra[(s->r.pc-3) & 0xFFFF] ++;
-            s->prof.abs_y_extra ++;
+            s->prof.extra[(s->r.pc - 3) & 0xFFFF]++;
+            s->prof.abs_y_extra++;
         }
     }
 }
 
-#define ZP_R1   val = readByte(s, data & 0xFF)
-#define ZP_W1   writeByte(s, data & 0xFF, val)
-#define ZPX_R1  val = readByte(s, (data + s->r.x) & 0xFF)
-#define ZPX_W1  writeByte(s, (data + s->r.x) & 0xFF, val)
-#define ZPY_R1  val = readByte(s, (data + s->r.y) & 0xFF)
-#define ZPY_W1  writeByte(s, (data + s->r.y) & 0xFF, val)
-#define ABS_R1  val = readByte(s, data)
-#define ABS_W1  writeByte(s, data, val)
-#define ABX_R1  val = readByte(s, data + s->r.x)
-#define ABX_W1  writeByte(s, data + s->r.x, val)
-#define ABY_R1  val = readByte(s, data + s->r.y)
-#define ABY_W1  writeByte(s, data + s->r.y, val)
-#define IND_X(op)  val = readIndX(s, data); op
-#define IND_Y(op)  val = readIndY(s, data); op
-#define INDW_X(op) op; writeIndX(s, data, val)
-#define INDW_Y(op) op; writeIndY(s, data, val)
+#define ZP_R1  val = readByte(s, data & 0xFF)
+#define ZP_W1  writeByte(s, data & 0xFF, val)
+#define ZPX_R1 val = readByte(s, (data + s->r.x) & 0xFF)
+#define ZPX_W1 writeByte(s, (data + s->r.x) & 0xFF, val)
+#define ZPY_R1 val = readByte(s, (data + s->r.y) & 0xFF)
+#define ZPY_W1 writeByte(s, (data + s->r.y) & 0xFF, val)
+#define ABS_R1 val = readByte(s, data)
+#define ABS_W1 writeByte(s, data, val)
+#define ABX_R1 val = readByte(s, data + s->r.x)
+#define ABX_W1 writeByte(s, data + s->r.x, val)
+#define ABY_R1 val = readByte(s, data + s->r.y)
+#define ABY_W1 writeByte(s, data + s->r.y, val)
+#define IND_X(op)            \
+    val = readIndX(s, data); \
+    op
+#define IND_Y(op)            \
+    val = readIndY(s, data); \
+    op
+#define INDW_X(op) \
+    op;            \
+    writeIndX(s, data, val)
+#define INDW_Y(op) \
+    op;            \
+    writeIndY(s, data, val)
 
-#define ORA s->r.a |= val; SETZ(s->r.a); SETN(s->r.a)
-#define AND s->r.a &= val; SETZ(s->r.a); SETN(s->r.a)
-#define EOR s->r.a ^= val; SETZ(s->r.a); SETN(s->r.a)
+#define ORA        \
+    s->r.a |= val; \
+    SETZ(s->r.a);  \
+    SETN(s->r.a)
+#define AND        \
+    s->r.a &= val; \
+    SETZ(s->r.a);  \
+    SETN(s->r.a)
+#define EOR        \
+    s->r.a ^= val; \
+    SETZ(s->r.a);  \
+    SETN(s->r.a)
 #define ADC do_adc(s, val)
 #define SBC do_sbc(s, val)
-#define ASL SETC(val & 0x80); val = (val << 1) & 0xFF; SETZ(val); SETN(val)
-#define ROL val = (val << 1) | (GETC ? 1 : 0); SETC(val & 256); val &= 0xFF; SETZ(val); SETN(val)
-#define LSR SETC(val & 1); val=(val >> 1) & 0xFF; SETZ(val); SETN(val)
-#define ROR val |= (GETC ? 256 : 0); SETC(val & 1); val = (val >> 1) & 0xFF; SETZ(val); SETN(val)
+#define ASL                  \
+    SETC(val & 0x80);        \
+    val = (val << 1) & 0xFF; \
+    SETZ(val);               \
+    SETN(val)
+#define ROL                            \
+    val = (val << 1) | (GETC ? 1 : 0); \
+    SETC(val & 256);                   \
+    val &= 0xFF;                       \
+    SETZ(val);                         \
+    SETN(val)
+#define LSR                  \
+    SETC(val & 1);           \
+    val = (val >> 1) & 0xFF; \
+    SETZ(val);               \
+    SETN(val)
+#define ROR                  \
+    val |= (GETC ? 256 : 0); \
+    SETC(val & 1);           \
+    val = (val >> 1) & 0xFF; \
+    SETZ(val);               \
+    SETN(val)
 
-#define SET_ZN   SETN(val); SETZ(val)
-#define DEC val = (val - 1) & 0xFF; SET_ZN
-#define INC val = (val + 1) & 0xFF; SET_ZN
-#define CMP val = (s->r.a + 0x100 - val); SET_ZN; SETC(val > 0xFF)
-#define CPX val = (s->r.x + 0x100 - val); SET_ZN; SETC(val > 0xFF)
-#define CPY val = (s->r.y + 0x100 - val); SET_ZN; SETC(val > 0xFF)
+#define SET_ZN \
+    SETN(val); \
+    SETZ(val)
+#define DEC                 \
+    val = (val - 1) & 0xFF; \
+    SET_ZN
+#define INC                 \
+    val = (val + 1) & 0xFF; \
+    SET_ZN
+#define CMP                       \
+    val = (s->r.a + 0x100 - val); \
+    SET_ZN;                       \
+    SETC(val > 0xFF)
+#define CPX                       \
+    val = (s->r.x + 0x100 - val); \
+    SET_ZN;                       \
+    SETC(val > 0xFF)
+#define CPY                       \
+    val = (s->r.y + 0x100 - val); \
+    SET_ZN;                       \
+    SETC(val > 0xFF)
 
-#define LDA SET_ZN; s->r.a = val
-#define LDX SET_ZN; s->r.x = val
-#define LDY SET_ZN; s->r.y = val
+#define LDA \
+    SET_ZN; \
+    s->r.a = val
+#define LDX \
+    SET_ZN; \
+    s->r.x = val
+#define LDY \
+    SET_ZN; \
+    s->r.y = val
 #define STA val = s->r.a
 #define STX val = s->r.x
 #define STY val = s->r.y
-#define PUSH(val) s->cycles += 3; writeByte(s, 0x100 + s->r.s,val); s->r.s = (s->r.s - 1) & 0xFF
-#define POP  s->r.s = (s->r.s + 1) & 0xFF; val = readByte(s, 0x100 + s->r.s)
+#define PUSH(val)                      \
+    s->cycles += 3;                    \
+    writeByte(s, 0x100 + s->r.s, val); \
+    s->r.s = (s->r.s - 1) & 0xFF
+#define POP                       \
+    s->r.s = (s->r.s + 1) & 0xFF; \
+    val    = readByte(s, 0x100 + s->r.s)
 
 // Complete ops
-#define ZP_R(op)   s->cycles += 3; ZP_R1; op
-#define ZP_W(op)   s->cycles += 3; op; ZP_W1
-#define ZP_RW(op)  s->cycles += 5; ZP_R1; op; ZP_W1
+#define ZP_R(op)    \
+    s->cycles += 3; \
+    ZP_R1;          \
+    op
+#define ZP_W(op)    \
+    s->cycles += 3; \
+    op;             \
+    ZP_W1
+#define ZP_RW(op)   \
+    s->cycles += 5; \
+    ZP_R1;          \
+    op;             \
+    ZP_W1
 
-#define ABS_R(op)  s->cycles += 4; ABS_R1; op
-#define ABS_W(op)  s->cycles += 4; op; ABS_W1
-#define ABS_RW(op) s->cycles += 6; ABS_R1; op; ABS_W1
+#define ABS_R(op)   \
+    s->cycles += 4; \
+    ABS_R1;         \
+    op
+#define ABS_W(op)   \
+    s->cycles += 4; \
+    op;             \
+    ABS_W1
+#define ABS_RW(op)  \
+    s->cycles += 6; \
+    ABS_R1;         \
+    op;             \
+    ABS_W1
 
-#define ZPX_R(op)   s->cycles += 4; ZPX_R1; op
-#define ZPX_W(op)   s->cycles += 4; op; ZPX_W1
-#define ZPX_RW(op)  s->cycles += 6; ZPX_R1; op; ZPX_W1
+#define ZPX_R(op)   \
+    s->cycles += 4; \
+    ZPX_R1;         \
+    op
+#define ZPX_W(op)   \
+    s->cycles += 4; \
+    op;             \
+    ZPX_W1
+#define ZPX_RW(op)  \
+    s->cycles += 6; \
+    ZPX_R1;         \
+    op;             \
+    ZPX_W1
 
-#define ZPY_R(op)   s->cycles += 4; ZPY_R1; op
-#define ZPY_W(op)   s->cycles += 4; op; ZPY_W1
+#define ZPY_R(op)   \
+    s->cycles += 4; \
+    ZPY_R1;         \
+    op
+#define ZPY_W(op)   \
+    s->cycles += 4; \
+    op;             \
+    ZPY_W1
 
-#define ABX_R(op)   s->cycles += 4; do_extra_absx(s, data); ABX_R1; op
-#define ABX_W(op)   s->cycles += 5; op; ABX_W1
-#define ABX_RW(op)  s->cycles += 7; ABX_R1; op; ABX_W1
+#define ABX_R(op)           \
+    s->cycles += 4;         \
+    do_extra_absx(s, data); \
+    ABX_R1;                 \
+    op
+#define ABX_W(op)   \
+    s->cycles += 5; \
+    op;             \
+    ABX_W1
+#define ABX_RW(op)  \
+    s->cycles += 7; \
+    ABX_R1;         \
+    op;             \
+    ABX_W1
 
-#define ABY_R(op)   s->cycles += 4; do_extra_absy(s, data); ABY_R1; op
-#define ABY_W(op)   s->cycles += 5; op; ABY_W1
+#define ABY_R(op)           \
+    s->cycles += 4;         \
+    do_extra_absy(s, data); \
+    ABY_R1;                 \
+    op
+#define ABY_W(op)   \
+    s->cycles += 5; \
+    op;             \
+    ABY_W1
 
-#define IMM(op)     s->cycles += 2; val = data; op
-#define IMP_A(op)   s->cycles += 2; val = s->r.a; op; s->r.a = val; SET_ZN
-#define IMP_Y(op)   s->cycles += 2; val = s->r.y; op; s->r.y = val; SET_ZN
-#define IMP_X(op)   s->cycles += 2; val = s->r.x; op; s->r.x = val; SET_ZN
-#define TXS()       s->cycles += 2; s->r.s = s->r.x;
+#define IMM(op)     \
+    s->cycles += 2; \
+    val = data;     \
+    op
+#define IMP_A(op)   \
+    s->cycles += 2; \
+    val = s->r.a;   \
+    op;             \
+    s->r.a = val;   \
+    SET_ZN
+#define IMP_Y(op)   \
+    s->cycles += 2; \
+    val = s->r.y;   \
+    op;             \
+    s->r.y = val;   \
+    SET_ZN
+#define IMP_X(op)   \
+    s->cycles += 2; \
+    val = s->r.x;   \
+    op;             \
+    s->r.x = val;   \
+    SET_ZN
+#define TXS()       \
+    s->cycles += 2; \
+    s->r.s = s->r.x;
 
-#define BRA_0(a)    do_branch(s, data, a, 0)
-#define BRA_1(a)    do_branch(s, data, a, 1)
-#define JMP()      s->cycles += 3; s->r.pc = data
-#define JMP16()    s->cycles += 5; s->r.pc = readWord(s, data)
-#define JSR()      do_jsr(s, data)
-#define RTS()      do_rts(s)
-#define RTI()      do_rti(s)
+#define BRA_0(a) do_branch(s, data, a, 0)
+#define BRA_1(a) do_branch(s, data, a, 1)
+#define JMP()       \
+    s->cycles += 3; \
+    s->r.pc = data
+#define JMP16()     \
+    s->cycles += 5; \
+    s->r.pc = readWord(s, data)
+#define JSR() do_jsr(s, data)
+#define RTS() do_rts(s)
+#define RTI() do_rti(s)
 
-#define CL_F(f)   s->cycles += 2; set_flags(s, f, 0)
-#define SE_F(f)   s->cycles += 2; set_flags(s, f, f)
+#define CL_F(f)     \
+    s->cycles += 2; \
+    set_flags(s, f, 0)
+#define SE_F(f)     \
+    s->cycles += 2; \
+    set_flags(s, f, f)
 
-#define POP_P  s->cycles += 4; POP; set_flags(s, 0xFF, val | 0x30)
-#define POP_A  s->cycles += 4; POP; LDA
+#define POP_P       \
+    s->cycles += 4; \
+    POP;            \
+    set_flags(s, 0xFF, val | 0x30)
+#define POP_A       \
+    s->cycles += 4; \
+    POP;            \
+    LDA
 
 // Special case BIT instructions as sometimes are used to SKIP
 void do_bit(sim65 s, uint16_t addr)
@@ -646,8 +794,12 @@ void do_bit(sim65 s, uint16_t addr)
         SETZ(s->r.a & val);
     }
 }
-#define BIT_ZP   s->cycles += 3; do_bit(s, data & 0xFF)
-#define BIT_ABS  s->cycles += 4; do_bit(s, data)
+#define BIT_ZP      \
+    s->cycles += 3; \
+    do_bit(s, data & 0xFF)
+#define BIT_ABS     \
+    s->cycles += 4; \
+    do_bit(s, data)
 
 static void do_jsr(sim65 s, unsigned data)
 {
@@ -702,7 +854,7 @@ static int next(sim65 s)
     }
 
     // Read instruction and data - always prefetched in real 6502 CPU
-    ins = readPc(s);
+    ins  = readPc(s);
     data = readByte(s, s->r.pc + 1);
 
     // And if instruction is 3 bytes, read high byte of data
@@ -714,158 +866,158 @@ static int next(sim65 s)
 
     switch (ins)
     {
-        case 0x00:  set_error(s, sim65_err_break, s->r.pc - 1); break;
-        case 0x01:  IND_X(ORA);             break;
-        case 0x05:  ZP_R(ORA);              break;
-        case 0x06:  ZP_RW(ASL);             break;
-        case 0x08:  PUSH(get_flags(s,0xFF)); break; // PHP
-        case 0x09:  IMM(ORA);               break;
-        case 0x0A:  IMP_A(ASL);             break;
-        case 0x0D:  ABS_R(ORA);             break;
-        case 0x0E:  ABS_RW(ASL);            break;
-        case 0x10:  BRA_0(FLAG_N);          break; // BPL
-        case 0x11:  IND_Y(ORA);             break;
-        case 0x15:  ZPX_R(ORA);             break;
-        case 0x16:  ZPX_RW(ASL);            break;
-        case 0x18:  CL_F(FLAG_C);           break; // CLC
-        case 0x19:  ABY_R(ORA);             break;
-        case 0x1d:  ABX_R(ORA);             break;
-        case 0x1e:  ABX_RW(ASL);            break;
-        case 0x20:  JSR();                  break; // JSR
-        case 0x21:  IND_X(AND);             break;
-        case 0x24:  BIT_ZP;                 break;
-        case 0x25:  ZP_R(AND);              break;
-        case 0x26:  ZP_RW(ROL);             break;
-        case 0x28:  POP_P;                  break; // PLP
-        case 0x29:  IMM(AND);               break;
-        case 0x2a:  IMP_A(ROL);             break;
-        case 0x2c:  BIT_ABS;                break;
-        case 0x2d:  ABS_R(AND);             break;
-        case 0x2e:  ABS_RW(ROL);            break;
-        case 0x30:  BRA_1(FLAG_N);          break;
-        case 0x31:  IND_Y(AND);             break;
-        case 0x35:  ZPX_R(AND);             break;
-        case 0x36:  ZPX_RW(ROL);            break;
-        case 0x38:  SE_F(FLAG_C);           break; // SEC
-        case 0x39:  ABY_R(AND);             break;
-        case 0x3d:  ABX_R(AND);             break;
-        case 0x3e:  ABX_RW(ROL);            break;
-        case 0x40:  RTI();                  break; // RTI
-        case 0x41:  IND_X(EOR);             break;
-        case 0x45:  ZP_R(EOR);              break;
-        case 0x46:  ZP_RW(LSR);             break;
-        case 0x48:  PUSH(s->r.a);           break; // PHA
-        case 0x49:  IMM(EOR);               break;
-        case 0x4a:  IMP_A(LSR);             break;
-        case 0x4c:  JMP();                  break; // JMP
-        case 0x4d:  ABS_R(EOR);             break;
-        case 0x4e:  ABS_RW(LSR);            break;
-        case 0x50:  BRA_0(FLAG_V);          break;
-        case 0x51:  IND_Y(EOR);             break;
-        case 0x55:  ZPX_R(EOR);             break;
-        case 0x56:  ZPX_RW(LSR);            break;
-        case 0x58:  CL_F(FLAG_I);           break; // CLI
-        case 0x59:  ABY_R(EOR);             break;
-        case 0x5d:  ABX_R(EOR);             break;
-        case 0x5e:  ABX_RW(LSR);            break;
-        case 0x60:  RTS();                  break; // RTS
-        case 0x61:  IND_X(ADC);             break;
-        case 0x65:  ZP_R(ADC);              break;
-        case 0x66:  ZP_RW(ROR);             break;
-        case 0x68:  POP_A;                  break; // PLA
-        case 0x69:  IMM(ADC);               break;
-        case 0x6a:  IMP_A(ROR);             break;
-        case 0x6c:  JMP16();                break; // JMP ()
-        case 0x6d:  ABS_R(ADC);             break;
-        case 0x6e:  ABS_RW(ROR);            break;
-        case 0x70:  BRA_1(FLAG_V);          break;
-        case 0x71:  IND_Y(ADC);             break;
-        case 0x75:  ZPX_R(ADC);             break;
-        case 0x76:  ZPX_RW(ROR);            break;
-        case 0x78:  SE_F(FLAG_I);           break; // SEI
-        case 0x79:  ABY_R(ADC);             break;
-        case 0x7d:  ABX_R(ADC);             break;
-        case 0x7e:  ABX_RW(ROR);            break;
-        case 0x81:  INDW_X(STA);            break;
-        case 0x84:  ZP_W(STY);              break;
-        case 0x85:  ZP_W(STA);              break;
-        case 0x86:  ZP_W(STX);              break;
-        case 0x88:  IMP_Y(DEC);             break; // DEY
-        case 0x8a:  IMP_X(LDA);             break; // TXA
-        case 0x8c:  ABS_W(STY);             break;
-        case 0x8d:  ABS_W(STA);             break;
-        case 0x8e:  ABS_W(STX);             break;
-        case 0x90:  BRA_0(FLAG_C);          break; // BCC
-        case 0x91:  INDW_Y(STA);            break;
-        case 0x94:  ZPX_W(STY);             break;
-        case 0x95:  ZPX_W(STA);             break;
-        case 0x96:  ZPY_W(STX);             break;
-        case 0x98:  IMP_Y(LDA);             break; // TYA
-        case 0x99:  ABY_W(STA);             break;
-        case 0x9a:  TXS();                  break; // TXS
-        case 0x9d:  ABX_W(STA);             break;
-        case 0xa0:  IMM(LDY);               break;
-        case 0xa1:  IND_X(LDA);             break;
-        case 0xa2:  IMM(LDX);               break;
-        case 0xa4:  ZP_R(LDY);              break;
-        case 0xa5:  ZP_R(LDA);              break;
-        case 0xa6:  ZP_R(LDX);              break;
-        case 0xa8:  IMP_A(LDY);             break; // TAY
-        case 0xa9:  IMM(LDA);               break;
-        case 0xaa:  IMP_A(LDX);             break; // TAX
-        case 0xac:  ABS_R(LDY);             break;
-        case 0xad:  ABS_R(LDA);             break;
-        case 0xae:  ABS_R(LDX);             break;
-        case 0xb0:  BRA_1(FLAG_C);          break; // BCS
-        case 0xb1:  IND_Y(LDA);             break;
-        case 0xb4:  ZPX_R(LDY);             break;
-        case 0xb5:  ZPX_R(LDA);             break;
-        case 0xb6:  ZPY_R(LDX);             break;
-        case 0xb8:  CL_F(FLAG_V);           break; // CLV
-        case 0xb9:  ABY_R(LDA);             break;
-        case 0xba:  IMP_X(val = s->r.s);    break; // TSX
-        case 0xbc:  ABX_R(LDY);             break;
-        case 0xbd:  ABX_R(LDA);             break;
-        case 0xbe:  ABY_R(LDX);             break;
-        case 0xc0:  IMM(CPY);               break;
-        case 0xc1:  IND_X(CMP);             break;
-        case 0xc4:  ZP_R(CPY);              break;
-        case 0xc5:  ZP_R(CMP);              break;
-        case 0xc6:  ZP_RW(DEC);             break;
-        case 0xc8:  IMP_Y(INC);             break; // INY
-        case 0xc9:  IMM(CMP);               break;
-        case 0xca:  IMP_X(DEC);             break; // DEX
-        case 0xcc:  ABS_R(CPY);             break;
-        case 0xcd:  ABS_R(CMP);             break;
-        case 0xce:  ABS_RW(DEC);            break;
-        case 0xd0:  BRA_0(FLAG_Z);          break; // BNE
-        case 0xd1:  IND_Y(CMP);             break;
-        case 0xd5:  ZPX_R(CMP);             break;
-        case 0xd6:  ZPX_RW(DEC);            break;
-        case 0xd8:  CL_F(FLAG_D);           break; // CLD
-        case 0xd9:  ABY_R(CMP);             break;
-        case 0xdd:  ABX_R(CMP);             break;
-        case 0xde:  ABX_RW(DEC);            break;
-        case 0xe0:  IMM(CPX);               break;
-        case 0xe1:  IND_X(SBC);             break;
-        case 0xe4:  ZP_R(CPX);              break;
-        case 0xe5:  ZP_R(SBC);              break;
-        case 0xe6:  ZP_RW(INC);             break;
-        case 0xe8:  IMP_X(INC);             break; // INX
-        case 0xe9:  IMM(SBC);               break;
-        case 0xea:  s->cycles += 2;         break; // NOP
-        case 0xec:  ABS_R(CPX);             break;
-        case 0xed:  ABS_R(SBC);             break;
-        case 0xee:  ABS_RW(INC);            break;
-        case 0xf0:  BRA_1(FLAG_Z);          break; // BEQ
-        case 0xf1:  IND_Y(SBC);             break;
-        case 0xf5:  ZPX_R(SBC);             break;
-        case 0xf6:  ZPX_RW(INC);            break;
-        case 0xf8:  SE_F(FLAG_D);           break; // SED
-        case 0xf9:  ABY_R(SBC);             break;
-        case 0xfd:  ABX_R(SBC);             break;
-        case 0xfe:  ABX_RW(INC);            break;
-        default:    set_error(s, sim65_err_invalid_ins, s->r.pc - 1);
+        case 0x00: set_error(s, sim65_err_break, s->r.pc - 1); break;
+        case 0x01: IND_X(ORA); break;               //
+        case 0x05: ZP_R(ORA); break;                //
+        case 0x06: ZP_RW(ASL); break;               //
+        case 0x08: PUSH(get_flags(s, 0xFF)); break; // PHP
+        case 0x09: IMM(ORA); break;                 //
+        case 0x0A: IMP_A(ASL); break;               //
+        case 0x0D: ABS_R(ORA); break;               //
+        case 0x0E: ABS_RW(ASL); break;              //
+        case 0x10: BRA_0(FLAG_N); break;            // BPL
+        case 0x11: IND_Y(ORA); break;               //
+        case 0x15: ZPX_R(ORA); break;               //
+        case 0x16: ZPX_RW(ASL); break;              //
+        case 0x18: CL_F(FLAG_C); break;             // CLC
+        case 0x19: ABY_R(ORA); break;               //
+        case 0x1d: ABX_R(ORA); break;               //
+        case 0x1e: ABX_RW(ASL); break;              //
+        case 0x20: JSR(); break;                    // JSR
+        case 0x21: IND_X(AND); break;               //
+        case 0x24: BIT_ZP; break;                   //
+        case 0x25: ZP_R(AND); break;                //
+        case 0x26: ZP_RW(ROL); break;               //
+        case 0x28: POP_P; break;                    // PLP
+        case 0x29: IMM(AND); break;                 //
+        case 0x2a: IMP_A(ROL); break;               //
+        case 0x2c: BIT_ABS; break;                  //
+        case 0x2d: ABS_R(AND); break;               //
+        case 0x2e: ABS_RW(ROL); break;              //
+        case 0x30: BRA_1(FLAG_N); break;            //
+        case 0x31: IND_Y(AND); break;               //
+        case 0x35: ZPX_R(AND); break;               //
+        case 0x36: ZPX_RW(ROL); break;              //
+        case 0x38: SE_F(FLAG_C); break;             // SEC
+        case 0x39: ABY_R(AND); break;               //
+        case 0x3d: ABX_R(AND); break;               //
+        case 0x3e: ABX_RW(ROL); break;              //
+        case 0x40: RTI(); break;                    // RTI
+        case 0x41: IND_X(EOR); break;               //
+        case 0x45: ZP_R(EOR); break;                //
+        case 0x46: ZP_RW(LSR); break;               //
+        case 0x48: PUSH(s->r.a); break;             // PHA
+        case 0x49: IMM(EOR); break;                 //
+        case 0x4a: IMP_A(LSR); break;               //
+        case 0x4c: JMP(); break;                    // JMP
+        case 0x4d: ABS_R(EOR); break;               //
+        case 0x4e: ABS_RW(LSR); break;              //
+        case 0x50: BRA_0(FLAG_V); break;            //
+        case 0x51: IND_Y(EOR); break;               //
+        case 0x55: ZPX_R(EOR); break;               //
+        case 0x56: ZPX_RW(LSR); break;              //
+        case 0x58: CL_F(FLAG_I); break;             // CLI
+        case 0x59: ABY_R(EOR); break;               //
+        case 0x5d: ABX_R(EOR); break;               //
+        case 0x5e: ABX_RW(LSR); break;              //
+        case 0x60: RTS(); break;                    // RTS
+        case 0x61: IND_X(ADC); break;               //
+        case 0x65: ZP_R(ADC); break;                //
+        case 0x66: ZP_RW(ROR); break;               //
+        case 0x68: POP_A; break;                    // PLA
+        case 0x69: IMM(ADC); break;                 //
+        case 0x6a: IMP_A(ROR); break;               //
+        case 0x6c: JMP16(); break;                  // JMP ()
+        case 0x6d: ABS_R(ADC); break;               //
+        case 0x6e: ABS_RW(ROR); break;              //
+        case 0x70: BRA_1(FLAG_V); break;            //
+        case 0x71: IND_Y(ADC); break;               //
+        case 0x75: ZPX_R(ADC); break;               //
+        case 0x76: ZPX_RW(ROR); break;              //
+        case 0x78: SE_F(FLAG_I); break;             // SEI
+        case 0x79: ABY_R(ADC); break;               //
+        case 0x7d: ABX_R(ADC); break;               //
+        case 0x7e: ABX_RW(ROR); break;              //
+        case 0x81: INDW_X(STA); break;              //
+        case 0x84: ZP_W(STY); break;                //
+        case 0x85: ZP_W(STA); break;                //
+        case 0x86: ZP_W(STX); break;                //
+        case 0x88: IMP_Y(DEC); break;               // DEY
+        case 0x8a: IMP_X(LDA); break;               // TXA
+        case 0x8c: ABS_W(STY); break;               //
+        case 0x8d: ABS_W(STA); break;               //
+        case 0x8e: ABS_W(STX); break;               //
+        case 0x90: BRA_0(FLAG_C); break;            // BCC
+        case 0x91: INDW_Y(STA); break;              //
+        case 0x94: ZPX_W(STY); break;               //
+        case 0x95: ZPX_W(STA); break;               //
+        case 0x96: ZPY_W(STX); break;               //
+        case 0x98: IMP_Y(LDA); break;               // TYA
+        case 0x99: ABY_W(STA); break;               //
+        case 0x9a: TXS(); break;                    // TXS
+        case 0x9d: ABX_W(STA); break;               //
+        case 0xa0: IMM(LDY); break;                 //
+        case 0xa1: IND_X(LDA); break;               //
+        case 0xa2: IMM(LDX); break;                 //
+        case 0xa4: ZP_R(LDY); break;                //
+        case 0xa5: ZP_R(LDA); break;                //
+        case 0xa6: ZP_R(LDX); break;                //
+        case 0xa8: IMP_A(LDY); break;               // TAY
+        case 0xa9: IMM(LDA); break;                 //
+        case 0xaa: IMP_A(LDX); break;               // TAX
+        case 0xac: ABS_R(LDY); break;               //
+        case 0xad: ABS_R(LDA); break;               //
+        case 0xae: ABS_R(LDX); break;               //
+        case 0xb0: BRA_1(FLAG_C); break;            // BCS
+        case 0xb1: IND_Y(LDA); break;               //
+        case 0xb4: ZPX_R(LDY); break;               //
+        case 0xb5: ZPX_R(LDA); break;               //
+        case 0xb6: ZPY_R(LDX); break;               //
+        case 0xb8: CL_F(FLAG_V); break;             // CLV
+        case 0xb9: ABY_R(LDA); break;               //
+        case 0xba: IMP_X(val = s->r.s); break;      // TSX
+        case 0xbc: ABX_R(LDY); break;               //
+        case 0xbd: ABX_R(LDA); break;               //
+        case 0xbe: ABY_R(LDX); break;               //
+        case 0xc0: IMM(CPY); break;                 //
+        case 0xc1: IND_X(CMP); break;               //
+        case 0xc4: ZP_R(CPY); break;                //
+        case 0xc5: ZP_R(CMP); break;                //
+        case 0xc6: ZP_RW(DEC); break;               //
+        case 0xc8: IMP_Y(INC); break;               // INY
+        case 0xc9: IMM(CMP); break;                 //
+        case 0xca: IMP_X(DEC); break;               // DEX
+        case 0xcc: ABS_R(CPY); break;               //
+        case 0xcd: ABS_R(CMP); break;               //
+        case 0xce: ABS_RW(DEC); break;              //
+        case 0xd0: BRA_0(FLAG_Z); break;            // BNE
+        case 0xd1: IND_Y(CMP); break;               //
+        case 0xd5: ZPX_R(CMP); break;               //
+        case 0xd6: ZPX_RW(DEC); break;              //
+        case 0xd8: CL_F(FLAG_D); break;             // CLD
+        case 0xd9: ABY_R(CMP); break;               //
+        case 0xdd: ABX_R(CMP); break;               //
+        case 0xde: ABX_RW(DEC); break;              //
+        case 0xe0: IMM(CPX); break;                 //
+        case 0xe1: IND_X(SBC); break;               //
+        case 0xe4: ZP_R(CPX); break;                //
+        case 0xe5: ZP_R(SBC); break;                //
+        case 0xe6: ZP_RW(INC); break;               //
+        case 0xe8: IMP_X(INC); break;               // INX
+        case 0xe9: IMM(SBC); break;                 //
+        case 0xea: s->cycles += 2; break;           // NOP
+        case 0xec: ABS_R(CPX); break;               //
+        case 0xed: ABS_R(SBC); break;               //
+        case 0xee: ABS_RW(INC); break;              //
+        case 0xf0: BRA_1(FLAG_Z); break;            // BEQ
+        case 0xf1: IND_Y(SBC); break;               //
+        case 0xf5: ZPX_R(SBC); break;               //
+        case 0xf6: ZPX_RW(INC); break;              //
+        case 0xf8: SE_F(FLAG_D); break;             // SED
+        case 0xf9: ABY_R(SBC); break;               //
+        case 0xfd: ABX_R(SBC); break;               //
+        case 0xfe: ABX_RW(INC); break;              //
+        default: set_error(s, sim65_err_invalid_ins, s->r.pc - 1);
     }
     return ins;
 }
@@ -876,7 +1028,7 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
         memcpy(&s->r, regs, sizeof(*regs));
 
     s->error = sim65_err_none;
-    s->r.pc = addr;
+    s->r.pc  = addr;
 
     if (s->do_prof)
     {
@@ -886,8 +1038,8 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
             uint64_t old_cycles = 0;
             struct sim65_reg old_regs;
             old_cycles = s->cycles;
-            old_regs = s->r;
-            s->wmem = 0;
+            old_regs   = s->r;
+            s->wmem    = 0;
 
             // Execute instruction
             int ins = next(s);
@@ -896,12 +1048,9 @@ enum sim65_error sim65_run(sim65 s, struct sim65_reg *regs, unsigned addr)
 
             // Update profile information
             unsigned cyc = s->cycles - old_cycles;
-            s->prof.instructions ++;
+            s->prof.instructions++;
             s->prof.cycles[old_regs.pc & 0xFFFF] += cyc;
-            if ( s->r.a == old_regs.a && s->r.x == old_regs.x &&
-                    s->r.y == old_regs.y && s->r.p == old_regs.p &&
-                    s->r.s == old_regs.s && s->r.pc == old_regs.pc + ilen[ins] &&
-                    !s->wmem)
+            if (s->r.a == old_regs.a && s->r.x == old_regs.x && s->r.y == old_regs.y && s->r.p == old_regs.p && s->r.s == old_regs.s && s->r.pc == old_regs.pc + ilen[ins] && !s->wmem)
             {
                 s->prof.mflag[old_regs.pc] += cyc;
             }
@@ -1064,7 +1213,7 @@ static char *print_abs_label(sim65 s, char *buf, uint16_t addr, char idx)
     else
     {
         *buf++ = '$';
-        buf = hex4(buf, addr);
+        buf    = hex4(buf, addr);
     }
     if (idx)
     {
@@ -1082,7 +1231,7 @@ static char *print_zp_label(sim65 s, char *buf, uint16_t addr, char idx)
     else
     {
         *buf++ = '$';
-        buf = hex2(buf, addr);
+        buf    = hex2(buf, addr);
     }
     if (idx)
     {
@@ -1095,7 +1244,7 @@ static char *print_zp_label(sim65 s, char *buf, uint16_t addr, char idx)
 static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx, int hint)
 {
     char *l = get_label(s, addr);
-    *buf++ = '(';
+    *buf++  = '(';
     if (l && *l)
         buf = print_lbl_max(buf, l, 14);
     else
@@ -1136,10 +1285,14 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx, int hi
     return buf;
 }
 
-#define PSTR(str) memcpy(buf, str, strlen(str)); buf += strlen(str)
+#define PSTR(str)                  \
+    memcpy(buf, str, strlen(str)); \
+    buf += strlen(str)
 #define PHX2(val) buf = hex2(buf, val)
 #define PHX4(val) buf = hex4(buf, val)
-#define PNAM(name)  PSTR(name); buf++;
+#define PNAM(name) \
+    PSTR(name);    \
+    buf++;
 #define PLAB(val)  buf = print_abs_label(s, buf, val, 0)
 #define PLABX(val) buf = print_abs_label(s, buf, val, 'X')
 #define PLABY(val) buf = print_abs_label(s, buf, val, 'Y')
@@ -1149,24 +1302,60 @@ static char *print_ind_label(sim65 s, char *buf, uint16_t addr, char idx, int hi
 #define PLIDX(val) buf = print_ind_label(s, buf, val, 'X', hint)
 #define PLIDY(val) buf = print_ind_label(s, buf, val, 'Y', hint)
 #define PLIND(val) buf = print_ind_label(s, buf, val, 0, hint)
-#define PXTRA(b,r,h) if (h) buf[18] = ((((b)+(r))^(b))&0xFF00) ? '*' : buf[18]
+#define PXTRA(b, r, h) \
+    if (h) buf[18] = ((((b) + (r)) ^ (b)) & 0xFF00) ? '*' : buf[18]
 
-#define INSPRT_IMM(name) PNAM(name); PSTR("#$"); PHX2(data)
-#define INSPRT_BRA(name) PNAM(name); PXTRA(pc+2, (int8_t)(data), 1); PLAB(pc+2+(int8_t)data)
-#define INSPRT_ABS(name) PNAM(name); PLAB(data)
-#define INSPRT_ABXW(name) PNAM(name); PLABX(data)
-#define INSPRT_ABYW(name) PNAM(name); PLABY(data)
-#define INSPRT_ABX(name) PNAM(name); PXTRA(data,s->r.x, hint); PLABX(data)
-#define INSPRT_ABY(name) PNAM(name); PXTRA(data,s->r.y, hint); PLABY(data)
-#define INSPRT_ZPG(name) PNAM(name); PLZP(data)
-#define INSPRT_ZPX(name) PNAM(name); PLZPX(data)
-#define INSPRT_ZPY(name) PNAM(name); PLZPY(data)
-#define INSPRT_IDX(name) PNAM(name); PLIDX(data)
-#define INSPRT_IDY(name) PNAM(name); PXTRA(readWord(s, data),s->r.y, hint); PLIDY(data)
-#define INSPRT_IDYW(name) PNAM(name); PLIDY(data)
-#define INSPRT_IND(name) PNAM(name); PLIND(data)
+#define INSPRT_IMM(name) \
+    PNAM(name);          \
+    PSTR("#$");          \
+    PHX2(data)
+#define INSPRT_BRA(name)              \
+    PNAM(name);                       \
+    PXTRA(pc + 2, (int8_t)(data), 1); \
+    PLAB(pc + 2 + (int8_t)data)
+#define INSPRT_ABS(name) \
+    PNAM(name);          \
+    PLAB(data)
+#define INSPRT_ABXW(name) \
+    PNAM(name);           \
+    PLABX(data)
+#define INSPRT_ABYW(name) \
+    PNAM(name);           \
+    PLABY(data)
+#define INSPRT_ABX(name)       \
+    PNAM(name);                \
+    PXTRA(data, s->r.x, hint); \
+    PLABX(data)
+#define INSPRT_ABY(name)       \
+    PNAM(name);                \
+    PXTRA(data, s->r.y, hint); \
+    PLABY(data)
+#define INSPRT_ZPG(name) \
+    PNAM(name);          \
+    PLZP(data)
+#define INSPRT_ZPX(name) \
+    PNAM(name);          \
+    PLZPX(data)
+#define INSPRT_ZPY(name) \
+    PNAM(name);          \
+    PLZPY(data)
+#define INSPRT_IDX(name) \
+    PNAM(name);          \
+    PLIDX(data)
+#define INSPRT_IDY(name)                    \
+    PNAM(name);                             \
+    PXTRA(readWord(s, data), s->r.y, hint); \
+    PLIDY(data)
+#define INSPRT_IDYW(name) \
+    PNAM(name);           \
+    PLIDY(data)
+#define INSPRT_IND(name) \
+    PNAM(name);          \
+    PLIND(data)
 #define INSPRT_IMP(name) PNAM(name)
-#define INSPRT_ACC(name) PNAM(name); PSTR("A")
+#define INSPRT_ACC(name) \
+    PNAM(name);          \
+    PSTR("A")
 
 static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
 {
@@ -1180,9 +1369,9 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
     if (s->labels)
     {
         char *ebuf = buf + 19;
-        char *l = get_label(s, pc);
-        buf = print_lbl_max(buf, l, 16);
-        if( *l )
+        char *l    = get_label(s, pc);
+        buf        = print_lbl_max(buf, l, 16);
+        if (*l)
             *buf++ = ':';
         while (buf < ebuf)
             *buf++ = ' ';
@@ -1198,7 +1387,7 @@ static void print_curr_ins(const sim65 s, uint16_t pc, char *buf, int hint)
         ln = 31;
     memset(buf, ' ', ln + 9);
     buf[ln] = ';';
-    c = ilen[ins];
+    c       = ilen[ins];
     print_mem_count(buf + ln + 2, s, pc, c);
     buf[ln + 2 + c * 4] = 0;
 
@@ -1467,7 +1656,7 @@ void sim65_print_reg(const sim65 s, FILE *f)
 {
     char buffer[256];
     char *buf = buffer;
-    buf = hex8(buf, s->cycles);
+    buf       = hex8(buf, s->cycles);
     PSTR(": A=");
     PHX2(s->r.a);
     PSTR(" X=");
@@ -1486,7 +1675,7 @@ void sim65_print_reg(const sim65 s, FILE *f)
     putc('\n', f);
 }
 
-char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr)
+char *sim65_disassemble(const sim65 s, char *buf, uint16_t addr)
 {
     print_curr_ins(s, addr, buf, 0);
     return buf;
@@ -1557,7 +1746,7 @@ uint16_t sim65_error_addr(sim65 s)
 
 const char *sim65_error_str(sim65 s, enum sim65_error e)
 {
-    const char *err[1-sim65_err_user] = {
+    const char *err[1 - sim65_err_user] = {
         "no error",
         "instruction read from undefined memory",
         "instruction read from uninitialized memory",
@@ -1577,7 +1766,6 @@ const char *sim65_error_str(sim65 s, enum sim65_error e)
     else if (e < sim65_err_user)
         e = sim65_err_user;
     return err[-e];
-
 }
 
 void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
@@ -1596,7 +1784,7 @@ void sim65_lbl_add(sim65 s, uint16_t addr, const char *lbl)
 int sim65_lbl_load(sim65 s, const char *lblname)
 {
     int line = 0;
-    FILE *f = fopen(lblname, "r");
+    FILE *f  = fopen(lblname, "r");
     if (!f)
         return -1;
     while (1)
@@ -1606,7 +1794,7 @@ int sim65_lbl_load(sim65 s, const char *lblname)
         int e = fscanf(f, "%255[^\n\r]\n", str);
         if (e == EOF)
             break;
-        line ++;
+        line++;
         // Try parsing a CC65 line:
         if (2 != sscanf(str, "al %6x .%31s", &addr, name))
         {
@@ -1633,46 +1821,46 @@ uint64_t sim65_get_cycles(const sim65 s)
 struct sim65_profile sim65_get_profile_info(const sim65 s)
 {
     struct sim65_profile r = { .max = MAXRAM };
-    r.cycle_count = s->prof.cycles;
-    r.branch_taken = s->prof.branch;
-    r.extra_cycles = s->prof.extra;
-    r.flag_change = s->prof.mflag;
-    r.total.branch_skip = s->prof.branch_skip;
-    r.total.branch_taken = s->prof.branch_taken;
-    r.total.branch_extra = s->prof.branch_extra;
-    r.total.instructions = s->prof.instructions;
-    r.total.cycles = s->cycles;
-    r.total.extra_abs_x = s->prof.abs_x_extra;
-    r.total.extra_abs_y = s->prof.abs_y_extra;
-    r.total.extra_ind_y = s->prof.ind_y_extra;
+    r.cycle_count          = s->prof.cycles;
+    r.branch_taken         = s->prof.branch;
+    r.extra_cycles         = s->prof.extra;
+    r.flag_change          = s->prof.mflag;
+    r.total.branch_skip    = s->prof.branch_skip;
+    r.total.branch_taken   = s->prof.branch_taken;
+    r.total.branch_extra   = s->prof.branch_extra;
+    r.total.instructions   = s->prof.instructions;
+    r.total.cycles         = s->cycles;
+    r.total.extra_abs_x    = s->prof.abs_x_extra;
+    r.total.extra_abs_y    = s->prof.abs_y_extra;
+    r.total.extra_ind_y    = s->prof.ind_y_extra;
     return r;
 }
 
 int sim65_save_profile_data(const sim65 s, const char *fname)
 {
-    FILE *f = fopen(fname, "wb");
-    int e = 0;
+    FILE *f      = fopen(fname, "wb");
+    int e        = 0;
     uint16_t ver = 0x100;
-    if( !f )
+    if (!f)
     {
         sim65_eprintf(s, "can't save profile data", strerror(errno));
         return 1;
     }
     e = fprintf(f, "SIM65:PROF:2\n") < 0;
     e |= fwrite(&ver, sizeof(ver), 1, f) < 1;
-    e |= fwrite(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
-    e |= fwrite(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
-    e |= fwrite(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
-    e |= fwrite(&s->prof.mflag[0],     sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
-    e |= fwrite(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
+    e |= fwrite(&s->prof.cycles[0], sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.branch[0], sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.extra[0], sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.mflag[0], sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
+    e |= fwrite(&s->prof.branch_skip, sizeof(s->prof.branch_skip), 1, f) < 1;
     e |= fwrite(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
     e |= fwrite(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
-    e |= fwrite(&s->prof.abs_x_extra,  sizeof(s->prof.abs_x_extra), 1, f) < 1;
-    e |= fwrite(&s->prof.abs_y_extra,  sizeof(s->prof.abs_y_extra), 1, f) < 1;
-    e |= fwrite(&s->prof.ind_y_extra,  sizeof(s->prof.ind_y_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.abs_x_extra, sizeof(s->prof.abs_x_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.abs_y_extra, sizeof(s->prof.abs_y_extra), 1, f) < 1;
+    e |= fwrite(&s->prof.ind_y_extra, sizeof(s->prof.ind_y_extra), 1, f) < 1;
     e |= fwrite(&s->prof.instructions, sizeof(s->prof.instructions), 1, f) < 1;
     e |= fclose(f) != 0;
-    if( e )
+    if (e)
     {
         sim65_eprintf(s, "can't save profile data", strerror(errno));
         return 1;
@@ -1682,12 +1870,12 @@ int sim65_save_profile_data(const sim65 s, const char *fname)
 
 int sim65_load_profile_data(sim65 s, const char *fname)
 {
-    int e = 0;
+    int e        = 0;
     uint16_t ver = 0;
-    FILE *f = fopen(fname, "rb");
-    if( !f )
+    FILE *f      = fopen(fname, "rb");
+    if (!f)
     {
-        if( errno == ENOENT )
+        if (errno == ENOENT)
         {
             sim65_dprintf(s, "missing profile data");
             return 0;
@@ -1696,30 +1884,30 @@ int sim65_load_profile_data(sim65 s, const char *fname)
         return 1;
     }
     char buf[32];
-    if( !fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:2\n") )
+    if (!fgets(buf, 16, f) || strcmp(buf, "SIM65:PROF:2\n"))
     {
         fclose(f);
         sim65_eprintf(s, "not a profile data file");
         return 1;
     }
-    if( fread(&ver, sizeof(ver), 1, f) < 1 || ver != 0x100 )
+    if (fread(&ver, sizeof(ver), 1, f) < 1 || ver != 0x100)
     {
         fclose(f);
         sim65_eprintf(s, "invalid profile data file version %04x", ver);
         return 1;
     }
-    e |= fread(&s->prof.cycles[0],    sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
-    e |= fread(&s->prof.branch[0],    sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
-    e |= fread(&s->prof.extra[0],     sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
-    e |= fread(&s->prof.mflag[0],     sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
-    e |= fread(&s->prof.branch_skip,  sizeof(s->prof.branch_skip), 1, f) < 1;
+    e |= fread(&s->prof.cycles[0], sizeof(s->prof.cycles[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.branch[0], sizeof(s->prof.branch[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.extra[0], sizeof(s->prof.extra[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.mflag[0], sizeof(s->prof.mflag[0]), MAXRAM, f) < MAXRAM;
+    e |= fread(&s->prof.branch_skip, sizeof(s->prof.branch_skip), 1, f) < 1;
     e |= fread(&s->prof.branch_taken, sizeof(s->prof.branch_taken), 1, f) < 1;
     e |= fread(&s->prof.branch_extra, sizeof(s->prof.branch_extra), 1, f) < 1;
-    e |= fread(&s->prof.abs_x_extra,  sizeof(s->prof.abs_x_extra), 1, f) < 1;
-    e |= fread(&s->prof.abs_y_extra,  sizeof(s->prof.abs_y_extra), 1, f) < 1;
-    e |= fread(&s->prof.ind_y_extra,  sizeof(s->prof.ind_y_extra), 1, f) < 1;
+    e |= fread(&s->prof.abs_x_extra, sizeof(s->prof.abs_x_extra), 1, f) < 1;
+    e |= fread(&s->prof.abs_y_extra, sizeof(s->prof.abs_y_extra), 1, f) < 1;
+    e |= fread(&s->prof.ind_y_extra, sizeof(s->prof.ind_y_extra), 1, f) < 1;
     e |= fread(&s->prof.instructions, sizeof(s->prof.instructions), 1, f) < 1;
-    if( e )
+    if (e)
         sim65_eprintf(s, "can't read profile data", strerror(errno));
     fclose(f);
     return e;
@@ -1736,14 +1924,14 @@ const char *sim65_get_label(const sim65 s, uint16_t addr)
 }
 
 // memswap from CCAN
-#define MEMSWAP_TMP_SIZE	256
+#define MEMSWAP_TMP_SIZE 256
 static void memswap(void *a, void *b, size_t n)
 {
     uint8_t *ap = a;
     uint8_t *bp = b;
     uint8_t tmp[MEMSWAP_TMP_SIZE];
 
-    while( n >= MEMSWAP_TMP_SIZE )
+    while (n >= MEMSWAP_TMP_SIZE)
     {
         memcpy(tmp, bp, MEMSWAP_TMP_SIZE);
         memcpy(bp, ap, MEMSWAP_TMP_SIZE);
@@ -1753,7 +1941,7 @@ static void memswap(void *a, void *b, size_t n)
         bp += MEMSWAP_TMP_SIZE;
         n -= MEMSWAP_TMP_SIZE;
     }
-    if( n )
+    if (n)
     {
         memcpy(tmp, bp, n);
         memcpy(bp, ap, n);
@@ -1766,15 +1954,15 @@ static void memswap(void *a, void *b, size_t n)
 int sim65_swap_bank(sim65 s, uint16_t main_address, uint32_t bank_address, uint16_t size)
 {
     // Area must be inside memory
-    if( main_address + size > 0x10000 || bank_address + size > MAXRAM )
+    if (main_address + size > 0x10000 || bank_address + size > MAXRAM)
         return 0;
     // Ignore swapping same addresses
-    if( main_address == bank_address )
+    if (main_address == bank_address)
         return 1;
     // And can't overlap
-    if( main_address < bank_address && main_address + size > bank_address )
+    if (main_address < bank_address && main_address + size > bank_address)
         return 0;
-    if( bank_address < main_address && bank_address + size > main_address )
+    if (bank_address < main_address && bank_address + size > main_address)
         return 0;
     // Swap all data
     aswap(s->mem, main_address, bank_address, size);
@@ -1782,7 +1970,7 @@ int sim65_swap_bank(sim65 s, uint16_t main_address, uint32_t bank_address, uint1
     aswap(s->cb_read, main_address, bank_address, size);
     aswap(s->cb_write, main_address, bank_address, size);
     aswap(s->cb_exec, main_address, bank_address, size);
-    if( s->do_prof )
+    if (s->do_prof)
     {
         aswap(s->prof.cycles, main_address, bank_address, size);
         aswap(s->prof.branch, main_address, bank_address, size);

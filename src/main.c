@@ -17,13 +17,13 @@
  */
 #include "atari.h"
 #include "sim65.h"
+#include <getopt.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <getopt.h>
-#include <signal.h>
 
 static char *prog_name;
 static FILE *trace_file;
@@ -56,8 +56,7 @@ static void print_help(void)
                     " realtime  : Base time on real elapsed times (default)\n"
                     " cycletime : Base time on number of CPU cycles\n"
                     " fastmath  : Use Altirra fast math pack (default)\n"
-                    " atarimath : Use original Atari math pack\n"
-                    ,
+                    " atarimath : Use original Atari math pack\n",
             prog_name);
 }
 
@@ -65,7 +64,7 @@ static void print_error(const char *text)
 {
     if (text)
         fprintf(stderr, "%s: %s\n", prog_name, text);
-    fprintf(stderr,"%s: Try '-h' for help.\n", prog_name);
+    fprintf(stderr, "%s: Try '-h' for help.\n", prog_name);
     exit(1);
 }
 
@@ -84,18 +83,18 @@ static void store_prof(const char *fname, sim65 s)
         exit_error("can't open profile.");
     }
     struct sim65_profile pdata = sim65_get_profile_info(s);
-    uint64_t max_count = 1000;
-    for (unsigned i=0; i<pdata.max; i++)
+    uint64_t max_count         = 1000;
+    for (unsigned i = 0; i < pdata.max; i++)
         if (pdata.cycle_count[i] > max_count)
             max_count = pdata.cycle_count[i];
     int digits = 0;
-    while( max_count )
+    while (max_count)
     {
-        digits ++;
+        digits++;
         max_count /= 10;
     }
     char buf[256];
-    for (unsigned i=0; i<pdata.max; i++)
+    for (unsigned i = 0; i < pdata.max; i++)
         if (pdata.cycle_count[i])
         {
             fprintf(f, "%*" PRIu64 " %04X %s", digits, pdata.cycle_count[i], i,
@@ -110,17 +109,17 @@ static void store_prof(const char *fname, sim65 s)
                     fprintf(f, " (%" PRIu64 " times taken", pdata.branch_taken[i]);
                 fprintf(f, "%s", pdata.extra_cycles[i] ? ", crosses page)" : ")");
             }
-            else if(sim65_ins_is_branch(s, i))
+            else if (sim65_ins_is_branch(s, i))
                 fprintf(f, " (never taken)");
-            else if(pdata.extra_cycles[i])
+            else if (pdata.extra_cycles[i])
                 fprintf(f, " (%" PRIu64 " times crossed pages)", pdata.extra_cycles[i]);
             if (pdata.cycle_count[i] <= pdata.flag_change[i])
                 fprintf(f, " (no useful work)");
             fputc('\n', f);
         }
     // Summary at end
-    uint64_t ti  = pdata.total.instructions;
-    uint64_t tb  = pdata.total.branch_skip + pdata.total.branch_taken;
+    uint64_t ti = pdata.total.instructions;
+    uint64_t tb = pdata.total.branch_skip + pdata.total.branch_taken;
     fprintf(f, "--------- Total Instructions:    %10" PRIu64 "\n"
                "--------- Total Branches:        %10" PRIu64 " (%.1f%% of instructions)\n"
                "--------- Total Branches Taken:  %10" PRIu64 " (%.1f%% of branches)\n"
@@ -128,10 +127,10 @@ static void store_prof(const char *fname, sim65 s)
                "--------- Absolute X cross-page: %10" PRIu64 "\n"
                "--------- Absolute Y cross-page: %10" PRIu64 "\n"
                "--------- Indirect Y cross-page: %10" PRIu64 "\n",
-               ti, tb, 100.0 * tb / ti,
-               pdata.total.branch_taken, 100.0 * pdata.total.branch_taken / tb,
-               pdata.total.branch_extra, 100.0 * pdata.total.branch_extra / pdata.total.branch_taken,
-               pdata.total.extra_abs_x, pdata.total.extra_abs_y, pdata.total.extra_ind_y );
+            ti, tb, 100.0 * tb / ti,
+            pdata.total.branch_taken, 100.0 * pdata.total.branch_taken / tb,
+            pdata.total.branch_extra, 100.0 * pdata.total.branch_extra / pdata.total.branch_taken,
+            pdata.total.extra_abs_x, pdata.total.extra_abs_y, pdata.total.extra_ind_y);
 
     fclose(f);
 }
@@ -167,15 +166,14 @@ static void handle_sigint(int sig)
 
 int main(int argc, char **argv)
 {
-    sim65 s;
     int opt;
-    unsigned rom = 0;
+    prog_name            = argv[0];
+    unsigned rom         = 0;
     const char *profname = 0, *profdata = 0, *load_img = 0;
     const char *rootpath = 0;
     emu_options opts     = { .get_char = 0, .put_char = 0, .flags = 0 };
+    sim65 s              = sim65_new();
 
-    prog_name = argv[0];
-    s = sim65_new();
     if (!s)
         exit_error("internal error");
 
@@ -265,7 +263,7 @@ int main(int argc, char **argv)
 
     // Load disk image
     if (load_img)
-        if( atari_load_image(s, load_img) )
+        if (atari_load_image(s, load_img))
             exit_error("can't load disk image");
 
     // Set profile info
@@ -281,7 +279,7 @@ int main(int argc, char **argv)
     // Adds a signal handler for CONTROL-C, so we exit from the
     // simulator cleanly
     handle_sigint_s = s;
-    if( SIG_ERR == signal(SIGINT, handle_sigint) )
+    if (SIG_ERR == signal(SIGINT, handle_sigint))
         sim65_dprintf(s, "Error setting signal handler.");
 
     // Read and execute file

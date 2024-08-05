@@ -18,10 +18,10 @@
 #include "hw.h"
 #include "atari.h"
 #include "sim65.h"
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <sys/time.h>
 
 static int sim_exec_error(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
@@ -79,7 +79,7 @@ static int sim_pokey(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     else
     {
         // Don't log zero writes
-        if( data != 0 )
+        if (data != 0)
             sim65_dprintf(s, "POKEY write $%04x <- $%02x", addr, data);
     }
     return 0;
@@ -139,7 +139,7 @@ static int64_t atari_hw_vcount(sim65 s, int flags)
         // Get current time in seconds:
         struct timeval tv;
         gettimeofday(&tv, 0);
-        double time   = (tv.tv_sec + tv.tv_usec * 0.000001);
+        double time = (tv.tv_sec + tv.tv_usec * 0.000001);
         // Scale depending on PAL/NTSC setting
         if (flags & atari_opt_pal)
             time = time * (15556.55 * 0.5); // PAL
@@ -155,7 +155,7 @@ static int64_t atari_hw_vcount(sim65 s, int flags)
 // Get the frame counter
 int64_t atari_hw_framenum(sim65 s)
 {
-    int flags = atari_get_flags(s);
+    int flags      = atari_get_flags(s);
     int64_t vcount = atari_hw_vcount(s, flags);
 
     if (flags & atari_opt_pal)
@@ -170,9 +170,9 @@ static int sim_antic(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     if (data == sim65_cb_read)
     {
         sim65_dprintf(s, "ANTIC read $%04x", addr);
-        if( (addr & 0xFF) == 0x0B )
+        if ((addr & 0xFF) == 0x0B)
         {
-            int flags = atari_get_flags(s);
+            int flags      = atari_get_flags(s);
             int64_t vcount = atari_hw_vcount(s, flags);
             if (flags & atari_opt_pal)
                 return vcount % 156;

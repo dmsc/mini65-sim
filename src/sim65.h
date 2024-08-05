@@ -23,30 +23,33 @@
 typedef struct sim65s *sim65;
 
 /// Debug levels
-enum sim65_debug {
-    sim65_debug_none = 0,
+enum sim65_debug
+{
+    sim65_debug_none     = 0,
     sim65_debug_messages = 1,
-    sim65_debug_trace = 2
+    sim65_debug_trace    = 2
 };
 
 /// Errors returned by simulator
-enum sim65_error {
+enum sim65_error
+{
     sim65_err_none        = 0,
-    sim65_err_exec_undef  = -1,   // 0
-    sim65_err_exec_uninit = -2,   // 1
-    sim65_err_read_undef  = -3,   // 1
-    sim65_err_read_uninit = -4,   // 2
-    sim65_err_write_undef = -5,   // 1
-    sim65_err_write_rom   = -6,   // 2
-    sim65_err_break       = -7,   // 0
-    sim65_err_invalid_ins = -8,   // 0
-    sim65_err_call_ret    = -9,   // 0
-    sim65_err_cycle_limit = -10,  // 0
-    sim65_err_user        = -11   // 0
+    sim65_err_exec_undef  = -1,  // 0
+    sim65_err_exec_uninit = -2,  // 1
+    sim65_err_read_undef  = -3,  // 1
+    sim65_err_read_uninit = -4,  // 2
+    sim65_err_write_undef = -5,  // 1
+    sim65_err_write_rom   = -6,  // 2
+    sim65_err_break       = -7,  // 0
+    sim65_err_invalid_ins = -8,  // 0
+    sim65_err_call_ret    = -9,  // 0
+    sim65_err_cycle_limit = -10, // 0
+    sim65_err_user        = -11  // 0
 };
 
 /// Error levels - makes simulation return on only certain errors critical most
-enum sim65_error_lvl {
+enum sim65_error_lvl
+{
     /// Only return on unhandled errors: BRK, invalid instructions, undefined memory execution.
     sim65_errlvl_none = 0,
     /// Also return on most memory errors, ignore write to ROM and read from uninitialized.
@@ -58,7 +61,8 @@ enum sim65_error_lvl {
 };
 
 /// Structure with profile information
-struct sim65_profile {
+struct sim65_profile
+{
     /// Number of elements on the arrays.
     const unsigned max;
     /// Array with count of cycles executing instructions at each address, from 0 to max-1.
@@ -72,7 +76,8 @@ struct sim65_profile {
     /// flags on execution, for each address, from 0 to max-1.
     /// This is used to detect unneeded flag setting instructions.
     const uint64_t *flag_change;
-    struct {
+    struct
+    {
         /// Total number of cycles
         uint64_t cycles;
         /// Total number of instructions executed
@@ -122,7 +127,8 @@ struct sim65_reg
     uint8_t a, x, y, p, s;
 };
 
-enum sim65_flags {
+enum sim65_flags
+{
     SIM65_FLAG_C = 0x01,
     SIM65_FLAG_Z = 0x02,
     SIM65_FLAG_I = 0x04,
@@ -135,8 +141,8 @@ enum sim65_flags {
 enum sim65_cb_type
 {
     sim65_cb_write = 0,
-    sim65_cb_read = -1,
-    sim65_cb_exec = -2
+    sim65_cb_read  = -1,
+    sim65_cb_exec  = -2
 };
 
 /** Callback from the simulator.
@@ -219,7 +225,7 @@ const char *sim65_get_label(const sim65 s, uint16_t addr);
 
 /// Disassembles the givenn address to the buffer, length should be > 128.
 /// @returns the same buffer passed.
-char * sim65_disassemble(const sim65 s, char *buf, uint16_t addr);
+char *sim65_disassemble(const sim65 s, char *buf, uint16_t addr);
 
 /// Checks if the instruction at address is a branch.
 /// @returns 1 if at address there is a branch, 0 otherwise.
