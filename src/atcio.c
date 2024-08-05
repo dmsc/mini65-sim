@@ -503,11 +503,9 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return cio_error(s, regs, "channel already opened", 129);
 
         if (!cio_init_open(s, regs))
-        {
             // Found, call open
             call_devtab(s, regs, DEVR_OPEN);
-            cio_store(s, regs);
-        }
+        cio_store(s, regs);
         return 0;
     }
 
@@ -533,6 +531,8 @@ static int sim_CIOV(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
                     // SPECIAL
                     call_devtab(s, regs, DEVR_SPECIAL);
             }
+            // Copy Y to ICSTA
+            poke(s, regs->x + ICSTA, regs->y);
             return 0;
         }
     }
