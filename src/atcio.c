@@ -344,6 +344,7 @@ static int cio_do_command(sim65 s, struct sim65_reg *regs)
     if (com == 4 || com == 5)
     {
         // GET RECORD
+        int long_record = 0;
         for (;;)
         {
             // Get single
@@ -356,9 +357,14 @@ static int cio_do_command(sim65 s, struct sim65_reg *regs)
                 dpoke(s, ICBALZ, dpeek(s, ICBALZ) + 1);
                 dpoke(s, ICBLLZ, dpeek(s, ICBLLZ) - 1);
             }
+            else
+                long_record = 1;
+
             if (regs->a == 0x9B)
                 break;
         }
+        if (long_record)
+            regs->y = 0x89;
         cio_fix_length(s, regs);
     }
     else if (com == 6 || com == 7)
