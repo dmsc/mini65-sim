@@ -79,13 +79,13 @@ static void sys_screen(sim65 s, enum scr_command cmd, int x, int y, int data,
         case scr_cmd_locate:
             sim65_dprintf(s, "SCREEN: get (locate) @(%d, %d)", x, y);
             atari_printf("SCREEN: locate %d,%d\n", x, y);
-            if (x >= 0 && x < sx && y >= 0 && y < sx)
+            if (x >= 0 && x < sx && y >= 0 && y < sy)
                 r->a = scr[y * 320 + x];
             break;
         case scr_cmd_plot:
             sim65_dprintf(s, "SCREEN: put (plot) @(%d, %d) color: %d", x, y, data);
             atari_printf("SCREEN: plot %d,%d  color %d\n", x, y, data % numc);
-            if (x >= 0 && x < sx && y >= 0 && y < sx)
+            if (x >= 0 && x < sx && y >= 0 && y < sy)
                 scr[y * 320 + x] = data % numc;
             break;
         case scr_cmd_drawto:
