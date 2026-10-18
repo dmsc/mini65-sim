@@ -39,8 +39,8 @@ static int get_case(const char *str)
 
 FILE *dosfopen(const char *root, const char *name, const char *mode)
 {
-    // Build the full name
-    char fullname[strlen(root) + strlen(name) + 1];
+    // Build the full name: root + '/' + name + NUL
+    char fullname[strlen(root) + strlen(name) + 2];
 
     // Easy, check if file already exists
     struct stat st;
