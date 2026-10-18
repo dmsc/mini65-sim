@@ -19,6 +19,33 @@
 
 #include "sim65.h"
 
+// Emulated Atari OS variables used by the system, CIO and editor.
+#define LMARGN 0x52
+#define RMARGN 0x53
+#define ROWCRS 0x54
+#define COLCRS 0x55
+#define DINDEX 0x57
+#define SAVMSC 0x58
+#define OLDROW 0x5A
+#define OLDCOL 0x5B
+#define OLDCHR 0x5D
+#define OLDADR 0x5E
+#define LOGCOL 0x63
+#define ADRESS 0x64
+#define RAMTOP 0x6A
+#define ESCFLG 0x02A2
+#define TABMAP 0x02A3
+#define LOGMAP 0x02B2
+#define SHFLOK 0x02BE
+#define RUNAD  0x02E0
+#define INITAD 0x02E2
+#define MEMTOP 0x02E5
+#define MEMLO  0x02E7
+#define CRSINH 0x02F0
+#define CH     0x02FC
+#define CH1    0x02F2
+#define DSPFLG 0x02FE
+
 // Option flags
 enum atari_opts_flags
 {

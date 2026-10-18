@@ -29,6 +29,7 @@ all: $(BDIR)/atarisim
 SRC=\
  src/atari.c\
  src/atcio.c\
+ src/atedit.c\
  src/ataridos.c\
  src/atsio.c\
  src/dosfname.c\
@@ -52,7 +53,8 @@ $(ODIR):
 
 $(ODIR)/atari.o: src/atari.c src/atari.h src/sim65.h src/atcio.h src/atsio.h \
 	src/mathpack.h src/hw.h
-$(ODIR)/atcio.o: src/atcio.c src/atcio.h src/sim65.h src/atari.h src/dosfname.h
+$(ODIR)/atcio.o: src/atcio.c src/atcio.h src/atedit.h src/sim65.h src/atari.h src/dosfname.h
+$(ODIR)/atedit.o: src/atedit.c src/atedit.h src/atari.h src/atcio.h src/atari_mem.h src/ciodev.h
 $(ODIR)/atsio.o: src/atsio.c src/atsio.h src/sim65.h src/atari.h
 $(ODIR)/dosfname.o: src/dosfname.c src/dosfname.h
 $(ODIR)/hw.o: src/hw.c src/hw.h src/sim65.h

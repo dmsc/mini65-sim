@@ -19,6 +19,7 @@
 /* Implements BW-DOS (or Sparta DOS 3.x) emulation */
 #include "ataridos.h"
 #include "atari.h"
+#include "atari_mem.h"
 #include "atcio.h"
 #include "ciodev.h"
 #include "dosfname.h"
@@ -29,27 +30,6 @@
 static const char *root_path = ".";
 
 // Misc routines
-static unsigned peek(sim65 s, unsigned addr)
-{
-    return sim65_get_byte(s, addr);
-}
-
-static unsigned dpeek(sim65 s, unsigned addr)
-{
-    return sim65_get_byte(s, addr) + (sim65_get_byte(s, addr + 1) << 8);
-}
-
-static void poke(sim65 s, unsigned addr, unsigned char val)
-{
-    sim65_add_data_ram(s, addr, &val, 1);
-}
-
-static void dpoke(sim65 s, unsigned addr, unsigned val)
-{
-    poke(s, addr, val & 0xFF);
-    poke(s, addr + 1, val >> 8);
-}
-
 // Handlers for COMTAB jumps
 #define DOS_CP     (DOSCP_BASE + 0)
 #define DOS_CRNAME (DOSCP_BASE + 1)
@@ -398,5 +378,5 @@ void atari_dos_init(sim65 s)
     atari_cio_add_hatab(s, 'D', DISKDV);
     // Store our signature to MEMLO, and increase by 16 bytes:
     poke(s, 0x700, 'S');
-    dpoke(s, 0x2e7, 0x710);
+    dpoke(s, MEMLO, 0x710);
 }

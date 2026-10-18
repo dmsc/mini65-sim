@@ -19,6 +19,7 @@
 /* Implements Atari SIO emulation */
 #include "atsio.h"
 #include "atari.h"
+#include "atari_mem.h"
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -46,21 +47,6 @@
     if (!stat & 0x80) return -1
 
 // Utility functions
-static unsigned peek(sim65 s, unsigned addr)
-{
-    return sim65_get_byte(s, addr);
-}
-
-static unsigned dpeek(sim65 s, unsigned addr)
-{
-    return sim65_get_byte(s, addr) + (sim65_get_byte(s, addr + 1) << 8);
-}
-
-static void poke(sim65 s, unsigned addr, unsigned char val)
-{
-    sim65_add_data_ram(s, addr, &val, 1);
-}
-
 /***************************
  * Disk drive simulation.  *
  ***************************/

@@ -16,6 +16,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>
  */
 #include "atari.h"
+#include "atari_mem.h"
 #include "atcio.h"
 #include "atsio.h"
 #include "hw.h"
@@ -81,22 +82,6 @@ void add_rts_callback(sim65 s, unsigned addr, unsigned len, sim65_callback cb)
     sim65_add_callback_range(s, addr, len, cb, sim65_cb_exec);
     for (; len > 0; addr++, len--)
         sim65_add_data_rom(s, addr, &rts, 1);
-}
-
-static void poke(sim65 s, unsigned addr, unsigned char val)
-{
-    sim65_add_data_ram(s, addr, &val, 1);
-}
-
-static void dpoke(sim65 s, unsigned addr, unsigned val)
-{
-    poke(s, addr, val & 0xFF);
-    poke(s, addr + 1, val >> 8);
-}
-
-static unsigned dpeek(sim65 s, unsigned addr)
-{
-    return sim65_get_byte(s, addr) + (sim65_get_byte(s, addr + 1) << 8);
 }
 
 static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
@@ -240,8 +225,8 @@ static void atari_bios_init(sim65 s)
     // Math Package
     fp_init(s, atari_flags & atari_opt_atari_mathpack);
     // Simulate keyboard character "CH"
-    sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_read);
-    sim65_add_callback_range(s, 0x2FC, 1, sim_CH, sim65_cb_write);
+    sim65_add_callback_range(s, CH, 1, sim_CH, sim65_cb_read);
+    sim65_add_callback_range(s, CH, 1, sim_CH, sim65_cb_write);
     // Simulate RTCLOK
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_read);
     sim65_add_callback_range(s, 0x12, 3, sim_RTCLOK, sim65_cb_write);
@@ -273,17 +258,18 @@ static void atari_bios_init(sim65 s)
     poke(s, 17, 0x80);    // BREAK key not pressed
     dpoke(s, 10, 0xFFFF); // DOSVEC, go to DOS vector, use $FFFF as simulation return
     sim65_add_callback_range(s, 0x10, 2, sim_overwrite_dosvec, sim65_cb_write);
-    dpoke(s, 14, 0x800);          // APPHI, lowest usable RAM area
-    dpoke(s, 0x2e5, APP_RAM);     // MEMTOP
-    dpoke(s, 0x2e7, LOW_RAM);     // MEMLO
-    poke(s, 0x2FC, 0xFF);         // CH
-    poke(s, 0x2F2, 0xFF);         // CH1
-    dpoke(s, 0x58, VID_RAM);      // Simulated screen pointer
-    poke(s, 0x5D, 0);             // OLDCH
-    dpoke(s, 0x5E, VID_RAM);      // Store an invalid value in OLDADR, to catch
-                                  // programs writing to the screen directly.
-    poke(s, 0x6A, APP_RAM / 256); // RAMTOP
-    poke(s, 0x2be, 64);           // SHFLOK
+    dpoke(s, 14, 0x800); // APPHI, lowest usable RAM area
+    dpoke(s, MEMTOP, APP_RAM);
+    dpoke(s, MEMLO, LOW_RAM);
+    poke(s, CH, 0xFF);
+    poke(s, CH1, 0xFF);
+    dpoke(s, SAVMSC, VID_RAM);
+    poke(s, DINDEX, 0);
+    poke(s, OLDCHR, 0);
+    dpoke(s, OLDADR, VID_RAM);
+    // programs writing to the screen directly.
+    poke(s, RAMTOP, APP_RAM / 256);
+    poke(s, SHFLOK, 64);
 }
 
 static const struct
@@ -330,18 +316,20 @@ static const struct
     { "DRKMSK", 0x4E }, // DARK ATRACT MASK
     { "COLRSH", 0x4F }, // ATRACT COLOR SHIFTER (EOR'ED WITH PLAYFIELD
 
-    { "LMARGN", 0x52 }, // left margin (normally 2, cc65 C startup code sets it to 0)
-    { "RMARGN", 0x53 }, // right margin (normally 39 if no XEP80 is used)
-    { "ROWCRS", 0x54 }, // 1-byte cursor row
-    { "COLCRS", 0x55 }, // 2-byte cursor column
-    { "DINDEX", 0x57 }, // 1-byte display mode
-    { "SAVMSC", 0x58 }, // 2-byte saved memory scan counter
-    { "OLDROW", 0x5A }, // 1-byte prior row
-    { "OLDCOL", 0x5B }, // 2-byte prior column
-    { "OLDCHR", 0x5D }, // DATA UNDER CURSOR
-    { "OLDADR", 0x5E }, // 2-byte saved cursor memory address
+    { "LMARGN", LMARGN }, // left margin (normally 2, cc65 C startup code sets it to 0)
+    { "RMARGN", RMARGN }, // right margin (normally 39 if no XEP80 is used)
+    { "ROWCRS", ROWCRS }, // 1-byte cursor row
+    { "COLCRS", COLCRS }, // 2-byte cursor column
+    { "DINDEX", DINDEX }, // 1-byte display mode
+    { "SAVMSC", SAVMSC }, // 2-byte saved memory scan counter
+    { "OLDROW", OLDROW }, // 1-byte prior row
+    { "OLDCOL", OLDCOL }, // 2-byte prior column
+    { "OLDCHR", OLDCHR }, // DATA UNDER CURSOR
+    { "OLDADR", OLDADR }, // 2-byte saved cursor memory address
+    { "LOGCOL", LOGCOL }, // POINTS AT COLUMN IN LOGICAL LINE
+    { "ADRESS", ADRESS }, // 2-byte temporary address
 
-    { "RAMTOP", 0x6A }, // RAM SIZE DEFINED BY POWER ON LOGIC
+    { "RAMTOP", RAMTOP }, // RAM SIZE DEFINED BY POWER ON LOGIC
 
     { "FR0", 0xD4 },   // 6-byte register 0
     { "FR0+1", 0xD5 }, // 6-byte register 0
@@ -434,6 +422,9 @@ static const struct
     { "TINDEX", 0x0293 }, // TEXT INDEX
     { "TXTMSC", 0x0294 }, // FOOLS CONVRT INTO NEW MSC
     { "TXTOLD", 0x0296 }, // OLDROW & OLDCOL FOR TEXT (AND THEN SOME)
+    { "ESCFLG", ESCFLG }, // ESCAPE FLAG
+    { "TABMAP", TABMAP }, // 15-byte (120 bit) TAB STOP BIT MAP
+    { "LOGMAP", LOGMAP }, // LOGICAL LINE START BIT MAP
 
     // Color registers
     { "PCOLR0", 0x02C0 }, // 1-byte player-missile 0 color/luminance
@@ -446,19 +437,21 @@ static const struct
     { "COLOR3", 0x02C7 }, // 1-byte playfield 3 color/luminance
     { "COLOR4", 0x02C8 }, // 1-byte background color/luminance
 
-    { "RUNAD", 0x02E0 },  // Binary load RUN ADDRESS
-    { "INITAD", 0x02E2 }, // Binary load INIT ADDRESS
+    { "RUNAD", RUNAD },   // Binary load RUN ADDRESS
+    { "INITAD", INITAD }, // Binary load INIT ADDRESS
     { "RAMSIZ", 0x02E4 }, // RAM SIZE (HI BYTE ONLY)
-    { "MEMTOP", 0x02E5 }, // TOP OF AVAILABLE USER MEMORY
+    { "MEMTOP", MEMTOP }, // TOP OF AVAILABLE USER MEMORY
     { "MEMTOP+1", 0x02E6 },
-    { "MEMLO", 0x02E7 }, // BOTTOM OF AVAILABLE USER MEMORY
+    { "MEMLO", MEMLO }, // BOTTOM OF AVAILABLE USER MEMORY
     { "MEMLO+1", 0x02E8 },
 
     { "CHAR", 0x02FA },   // 1-byte internal character
     { "ATACHR", 0x02FB }, // ATASCII CHARACTER FOR DRAW/FILL BORDER
-    { "CH", 0x02FC },     // GLOBAL VARIABLE FOR KEYBOARD
+    { "CH", CH },         // GLOBAL VARIABLE FOR KEYBOARD
+    { "CH1", CH1 },       // 1-byte prior keyboard character
     { "FILDAT", 0x02FD }, // RIGHT FILL COLOR
-    { "DSPFLG", 0x02FE }, // DISPLAY FLAG   DISPLAY CNTLS IF NON-ZERO
+    { "DSPFLG", DSPFLG }, // DISPLAY FLAG   DISPLAY CNTLS IF NON-ZERO
+    { "CRSINH", CRSINH }, // CURSOR INHIBIT (00 = CURSOR ON)
     { "SSFLAG", 0x02FF }, // START/STOP FLAG FOR PAGING (CNTL 1). CLEARE
 
     { "DDEVIC", 0x0300 }, // PERIPHERAL UNIT 1 BUS I.D. NUMBER
@@ -597,8 +590,6 @@ void atari_init(sim65 s, emu_options *opts)
 
 enum sim65_error atari_xex_load(sim65 s, const char *name, int check)
 {
-    const uint16_t RUNAD  = 0x2E0;
-    const uint16_t INITAD = 0x2E2;
     int state = 0, saddr = 0, eaddr = 0, start = 0, vec;
     FILE *f = fopen(name, "rb");
     if (!f)
@@ -708,8 +699,8 @@ enum sim65_error atari_rom_load(sim65 s, int addr, const char *name)
     if (saddr == 0xA000 && addr == 0xC000)
     {
         // Fix MEMTOP and RAMTOP
-        dpoke(s, 0x2e5, saddr);     // MEMTOP
-        poke(s, 0x6A, saddr / 256); // RAMTOP
+        dpoke(s, MEMTOP, saddr);
+        poke(s, RAMTOP, saddr / 256);
 
         uint16_t flag = dpeek(s, 0xBFFC);
         uint16_t rvec = dpeek(s, 0xBFFA);

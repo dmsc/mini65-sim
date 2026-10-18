@@ -22,7 +22,7 @@
 #include "sim65.h"
 
 // Helper macros
-#define LO(a) ((a)&0xFF)
+#define LO(a) ((a) & 0xFF)
 #define HI(a) ((a) >> 8)
 
 // HATAB defs
@@ -103,3 +103,6 @@
 #define ICAX4 (0x034D) //       1-byte fourth auxiliary information
 #define ICAX5 (0x034E) //       1-byte fifth auxiliary information
 #define ICSPR (0x034F) //       SPARE BYTE
+
+// Shared error return for device-handler callbacks.
+int cb_error(sim65 s, unsigned addr);
