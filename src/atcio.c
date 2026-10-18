@@ -571,36 +571,115 @@ static unsigned char editr_scr[SCR_ROWS * SCR_COLS];
 // State for reading an input record from the emulated screen, this
 // emulates the Atari "E:" driver behavior of reading back the text
 // entered by the user from screen memory.
-static int editr_get_active   = 0;
-static unsigned editr_get_row = 0;
-static unsigned editr_get_col = 0;
-static unsigned editr_get_end = 0;
+static int editr_get_active       = 0;
+static int editr_get_empty        = 0;
+static unsigned editr_get_row     = 0;
+static unsigned editr_get_col     = 0;
+static unsigned editr_get_end_row = 0;
+static unsigned editr_get_end_col = 0;
+
+static int logmap_get(sim65 s, unsigned row);
+
+// Find the last non-blank character in the logical line starting at the
+// current cursor position.  A logical line continues while the next row's
+// LOGMAP bit is clear.  The scan respects RMARGN on every physical row.
+static void editr_get_begin_at(sim65 s, unsigned row, unsigned col)
+{
+    unsigned end_row;
+    unsigned end_col;
+    int found = 0;
+
+    if (row >= SCR_ROWS)
+        row = SCR_ROWS - 1;
+    if (col >= SCR_COLS)
+        col = SCR_COLS - 1;
+
+    editr_get_row     = row;
+    editr_get_col     = col;
+    editr_get_end_row = row;
+    editr_get_end_col = col;
+    editr_get_empty   = 0;
+
+    end_row = row;
+    end_col = col;
+    while (1)
+    {
+        unsigned limit = peek(s, RMARGN);
+        unsigned c;
+        if (limit >= SCR_COLS)
+            limit = SCR_COLS - 1;
+        for (c = col; c <= limit; c++)
+        {
+            if (atari_screen_get(row, c) != ' ')
+            {
+                end_row = row;
+                end_col = c;
+                found   = 1;
+            }
+        }
+        if (row + 1 >= SCR_ROWS || logmap_get(s, row + 1))
+            break;
+        row++;
+        col = peek(s, LMARGN);
+        if (col >= SCR_COLS)
+            break;
+    }
+
+    if (!found)
+        editr_get_empty = 1;
+    else
+    {
+        editr_get_end_row = end_row;
+        editr_get_end_col = end_col;
+    }
+}
+
+static void editr_get_begin(sim65 s)
+{
+    editr_get_begin_at(s, peek(s, ROWCRS), dpeek(s, COLCRS));
+}
 
 // Returns next character of the current input record from the screen,
 // starting at the current cursor position and ending at the last
-// non-blank character of the row.
+// non-blank character of the logical line.
 static int editr_get_record(sim65 s)
 {
+    unsigned row, col;
+    int c;
+
     if (!editr_get_active)
     {
-        unsigned col;
-        editr_get_row = peek(s, ROWCRS);
-        editr_get_col = dpeek(s, COLCRS);
-        // Find last non-blank character of the row
-        col = peek(s, RMARGN);
-        while (col > editr_get_col && (atari_screen_get(editr_get_row, col) & 0x7F) == ' ')
-            col--;
-        editr_get_end    = col;
+        editr_get_begin(s);
         editr_get_active = 1;
-        sim65_dprintf(s, "GETREC start (%u,%u) end=%u", editr_get_row,
-                      editr_get_col, editr_get_end);
+        sim65_dprintf(s, "GETREC start (%u,%u) end=(%u,%u)%s",
+                      editr_get_row, editr_get_col, editr_get_end_row,
+                      editr_get_end_col, editr_get_empty ? " empty" : "");
     }
-    if (editr_get_col > editr_get_end)
+    if (editr_get_empty)
     {
         editr_get_active = 0;
         return 0x9B;
     }
-    return atari_screen_get(editr_get_row, editr_get_col++) & 0x7F;
+
+    row = editr_get_row;
+    col = editr_get_col;
+    if (row > editr_get_end_row || (row == editr_get_end_row && col > editr_get_end_col))
+    {
+        editr_get_active = 0;
+        return 0x9B;
+    }
+
+    c = atari_screen_get(row, col);
+
+    col++;
+    if (col > (unsigned)peek(s, RMARGN))
+    {
+        col = peek(s, LMARGN);
+        row++;
+    }
+    editr_get_row = row;
+    editr_get_col = col;
+    return c;
 }
 
 // Returns the character at the given position of the emulated text screen.
@@ -915,66 +994,38 @@ static void editr_ret_wrap(sim65 s, unsigned *row, unsigned *col)
     logmap_set(s, *row, 0);
 }
 
-// Inserts a blank character at the given position of the given row,
-// moving the rest of the row to the right (as "insert character").
-static void editr_scr_ins(sim65 s, unsigned row, unsigned col)
-{
-    if (row >= SCR_ROWS || col >= SCR_COLS)
-        return;
-    memmove(editr_scr + row * SCR_COLS + col + 1,
-            editr_scr + row * SCR_COLS + col, SCR_COLS - col - 1);
-    editr_scr[row * SCR_COLS + col] = ' ';
-    editr_sync_row(s, row);
-}
-
 // Full editor INSERT ($FF): Shifts characters right within the current
 // logical line (up to 120 chars / 3 physical rows).
 // Stops when reaching the logical line boundary (next row with LOGMAP bit SET).
 static void editr_ins_logical(sim65 s, unsigned row, unsigned col)
 {
-    unsigned start_lc = compute_logcol(s, row, col);
-    unsigned prev_row = row, prev_col = col;
+    unsigned r          = row;
+    unsigned c          = col;
+    unsigned char saved = ' ';
 
+    /* Shift the current logical line right by one position, starting at the
+     * cursor.  Continue through continuation rows, but stop at the end of the
+     * logical line or at the 3-row/120-column limit. */
     while (1)
     {
-        // Advance to next position in logical line
-        unsigned next_col = prev_col + 1;
-        unsigned next_row = prev_row;
-        if (next_col > (unsigned)peek(s, RMARGN))
+        unsigned char next          = editr_scr[r * SCR_COLS + c];
+        editr_scr[r * SCR_COLS + c] = saved;
+        editr_sync_pixel(s, r, c);
+        saved = next;
+
+        if (c < (unsigned)peek(s, RMARGN))
+            c++;
+        else
         {
-            // Wrap to next row
-            next_col = peek(s, LMARGN);
-            next_row = prev_row + 1;
-            if (next_row >= SCR_ROWS)
+            c = peek(s, LMARGN);
+            r++;
+            if (r >= SCR_ROWS || logmap_get(s, r))
                 break;
-            // Check if next row is a continuation (LOGMAP bit CLEAR)
-            if (logmap_get(s, next_row))
-                break; // new logical line — stop
         }
 
-        unsigned next_lc = compute_logcol(s, next_row, next_col);
-        if (next_lc <= start_lc)
-            break; // logical line boundary
-
-        // 120-char cap
-        if (next_lc >= 120)
+        if (compute_logcol(s, r, c) >= 120)
             break;
-
-        // Read char at next position, write prev position
-        unsigned char next_c                      = editr_scr[next_row * SCR_COLS + next_col];
-        editr_scr[prev_row * SCR_COLS + prev_col] = next_c;
-        editr_sync_pixel(s, prev_row, prev_col);
-
-        if (next_c == ' ' && prev_col == (unsigned)peek(s, RMARGN))
-            break; // end of content
-
-        prev_row = next_row;
-        prev_col = next_col;
     }
-
-    // Store space at original position
-    editr_scr[row * SCR_COLS + col] = ' ';
-    editr_sync_pixel(s, row, col);
 }
 
 // Full editor DELETE ($FE): Shifts characters left within the current
@@ -1007,9 +1058,6 @@ static void editr_del_logical(sim65 s, unsigned row, unsigned col)
         editr_scr[prev_row * SCR_COLS + prev_col] = next_c;
         editr_sync_pixel(s, prev_row, prev_col);
 
-        if (next_c == '\0')
-            break; // end of content (zero = empty)
-
         prev_row = next_row;
         prev_col = next_col;
     }
@@ -1038,6 +1086,292 @@ static void editr_del_logical(sim65 s, unsigned row, unsigned col)
     }
 }
 
+// Type a line from the keyboard into the emulated screen, processing it
+// through the same full-editor path as E: PUT.  The completed line is then
+// returned by editr_get_record() from the screen.
+static void editr_put_char(sim65 s, unsigned char c, int echo_host);
+
+static int editr_type_input(sim65 s)
+{
+    unsigned start_row = peek(s, ROWCRS);
+    unsigned start_col = dpeek(s, COLCRS);
+    int c;
+
+    for (;;)
+    {
+        c = atari_get_char();
+        if (c == EOF || c < 0)
+            return 0;
+        editr_put_char(s, (unsigned char)c, 0);
+        if (c == 0x9B)
+            break;
+    }
+
+    editr_get_begin_at(s, start_row, start_col);
+    editr_get_active = 1;
+    return 1;
+}
+
+// Simplified stream mode for the E: device: no screen contents are emulated.
+static void editr_put_stream(sim65 s, unsigned char c)
+{
+    unsigned row = peek(s, ROWCRS);
+    unsigned col = dpeek(s, COLCRS);
+    atari_put_char(c);
+    if (c == 0x9B) // EOL: next row, left margin
+    {
+        col = peek(s, LMARGN);
+        if (row < SCR_ROWS - 1)
+            row++;
+    }
+    else if (c == 0x7D) // clear screen: home the cursor
+    {
+        row = 0;
+        col = peek(s, LMARGN);
+    }
+    else if (c == 0x7E) // backspace
+    {
+        if (col > peek(s, LMARGN))
+            col--;
+    }
+    else if (c >= 0x1C && c <= 0x1F) // cursor arrows
+    {
+        if (c == 0x1C && row > 0)
+            row--;
+        else if (c == 0x1D && row < SCR_ROWS - 1)
+            row++;
+        else if (c == 0x1E && col > peek(s, LMARGN))
+            col--;
+        else if (c == 0x1F && col < peek(s, RMARGN))
+            col++;
+    }
+    else if ((c & 0x7F) < 0x1C || ((c & 0x7F) >= 0x20 && (c & 0x7F) <= 0x7E))
+    {
+        // Graphical ($00-$1B) and printable ($20-$7E) characters
+        // advance the cursor (mask bit 7: inverse ATASCII).
+        col++;
+        if (col > peek(s, RMARGN))
+        {
+            col = peek(s, LMARGN);
+            if (row < SCR_ROWS - 1)
+                row++;
+        }
+    }
+    // Remaining control codes are ignored (with no advance)
+    poke(s, ROWCRS, row);
+    dpoke(s, COLCRS, col);
+    editr_last_row = row;
+    editr_last_col = col;
+}
+
+// Process one byte through the full E: editor and update the cursor state.
+// echo_host controls the optional host-output stream; keyboard input uses 0.
+static void editr_put_char(sim65 s, unsigned char c, int echo_host)
+{
+    unsigned row = peek(s, ROWCRS);
+    unsigned col = dpeek(s, COLCRS);
+    editr_cursor_restore(s);
+    // Special characters are consumed by the editor without
+    // advancing the cursor (unless stated otherwise).
+    int advance = 1;
+    // Detect POS changes
+    if (row != editr_last_row || col != editr_last_col)
+    {
+        if (row != editr_last_row && echo_host)
+            atari_put_char(0x9B);
+        sim65_dprintf(s, "EDITR position from (%d,%d) to (%d,%d)",
+                      editr_last_row, editr_last_col, row, col);
+    }
+    if (!peek(s, DSPFLG))
+    {
+        // Special characters are interpreted by the editor,
+        // all other characters are printed and advance the cursor.
+        if (echo_host) atari_put_char(c);
+
+        // ESC handling: when ESCFLG is set, the next character is
+        // printed verbatim (no control char interpretation).  EOL is
+        // the exception: it cannot be escaped and does not clear
+        // ESCFLG (ATARI-E.md).
+        if ((peek(s, ESCFLG) & 0x80) && c != 0x9B)
+        {
+            poke(s, ESCFLG, 0);
+            // Print character verbatim (no control char interpretation).
+            // The raw ATASCII char is kept in editr_scr; the screen
+            // RAM cell gets its internal glyph even for $1B-$1F
+            // (bypassing the control-char filter in editr_sync_pixel).
+            editr_scr[row * SCR_COLS + col] = c;
+            editr_sync_pixel(s, row, col);
+            if (col >= peek(s, RMARGN))
+            {
+                editr_ret_wrap(s, &row, &col);
+                advance = 0;
+            }
+        }
+        else
+            switch (c)
+            {
+                case 0x9B: // end of line
+                    // EOL starts a new logical line (not extending).
+                    // Cursor stays at the left margin (no advance).
+                    // EOL cannot be escaped; it also ends the escape.
+                    poke(s, ESCFLG, 0);
+                    editr_ret(s, &row, &col);
+                    advance = 0;
+                    break;
+                case 0x7D: // clear screen and home the cursor
+                    // The real hardware clears the screen and puts
+                    // the cursor in the upper left corner (left
+                    // margin, top row).
+                    editr_scr_clear(s);
+                    row = 0;
+                    col = peek(s, LMARGN);
+                    // LOGCOL resets with the cursor position (CHM).
+                    poke(s, LOGCOL, peek(s, LMARGN));
+                    advance = 0;
+                    break;
+                case 0x7E: // backspace: delete char left of cursor
+                    if (col > peek(s, LMARGN))
+                    {
+                        col--;
+                        editr_scr_del(s, row, col);
+                    }
+                    advance = 0;
+                    break;
+                case 0x1C: // move cursor up
+                    advance = 0;
+                    if (row > 0)
+                        row--;
+                    else
+                        row = SCR_ROWS - 1;
+                    break;
+                case 0x1D: // move cursor down
+                    advance = 0;
+                    if (row < SCR_ROWS - 1)
+                        row++;
+                    else
+                        row = 0;
+                    break;
+                case 0x1E: // move cursor left
+                    advance = 0;
+                    if (col > peek(s, LMARGN))
+                        col--;
+                    else
+                        col = peek(s, RMARGN);
+                    break;
+                case 0x1F: // move cursor right
+                    advance = 0;
+                    if (col < peek(s, RMARGN))
+                        col++;
+                    else
+                        col = peek(s, LMARGN);
+                    break;
+                case 0x1B: // ESC: set ESCFLG, next char printed verbatim
+                    poke(s, ESCFLG, 0x80);
+                    advance = 0;
+                    break;
+                case 0x7F: // TAB: move cursor to next tab stop
+                {
+                    unsigned next_tab = col + 1;
+                    while (next_tab < SCR_COLS && !tabmap_get(s, next_tab))
+                        next_tab++;
+                    if (next_tab < SCR_COLS)
+                        col = next_tab;
+                    advance = 0;
+                    break;
+                }
+                case 0x9E: // CLEAR TAB at cursor column
+                    tabmap_set(s, col, 0);
+                    advance = 0;
+                    break;
+                case 0x9F: // SET TAB at cursor column
+                    tabmap_set(s, col, 1);
+                    advance = 0;
+                    break;
+                case 0x9C: // delete line
+                    // Delete the whole logical line: starting at the
+                    // row where it begins, delete continuation rows
+                    // until the (new) current row starts a new
+                    // logical line (matches the ROM's DLN loop).
+                    while (row > 0 && !logmap_get(s, row))
+                        row--;
+                    do
+                    {
+                        editr_scr_del_line(s, row);
+                        logmap_shift_up(s, row);
+                    } while (!logmap_get(s, row));
+                    col     = peek(s, LMARGN);
+                    advance = 0;
+                    break;
+                case 0x9D: // insert line
+                    editr_scr_ins_line(s, row);
+                    logmap_shift_down(s, row);
+                    advance = 0;
+                    break;
+                case 0xFE: // delete character at cursor
+                    editr_del_logical(s, row, col);
+                    advance = 0;
+                    break;
+                case 0xFF: // insert character at cursor
+                    editr_ins_logical(s, row, col);
+                    advance = 0;
+                    break;
+                default:
+                    // Bell ($FD): no-op for simulation
+                    // $00-$1A are graphical chars (displayed).
+                    // $9B is EOL (consumed, not displayed).
+                    // $1B-$1F are control chars (consumed, not displayed).
+                    if (c != 0xFD && c != 0x9B && !(c >= 0x1C && c <= 0x1F))
+                    {
+                        editr_scr_put(s, row, col, c);
+                        if (col >= peek(s, RMARGN))
+                        {
+                            // Wrap: character extends the logical line
+                            editr_ret_wrap(s, &row, &col);
+                            advance = 0;
+                        }
+                    }
+                    else
+                        advance = 0;
+                    break;
+            }
+    }
+    else
+    {
+        // DSPFLG set: print all characters verbatim
+        if (echo_host) atari_put_char(c);
+        if (c == 0x9B)
+        {
+            col = peek(s, LMARGN);
+            if (row < SCR_ROWS - 1)
+                row++;
+            else
+                editr_scr_del_line(s, 0);
+        }
+        else
+        {
+            editr_scr_put(s, row, col, c);
+            if (col >= peek(s, RMARGN))
+            {
+                col = peek(s, LMARGN);
+                if (row < SCR_ROWS - 1)
+                    row++;
+                else
+                    editr_scr_del_line(s, 0);
+            }
+            else
+                col++;
+        }
+        advance = 0; // already handled above
+    }
+    if (advance)
+        col++;
+    dpoke(s, COLCRS, col);
+    poke(s, ROWCRS, row);
+    editr_last_row = row;
+    editr_last_col = col;
+    editr_cursor_update(s, row, col);
+}
+
 static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
     switch (addr & 7)
@@ -1049,21 +1383,23 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return 0;
         case DEVR_GET:
         {
-            // "GET RECORD" reads back the current input line from the
-            // emulated screen (as the real E: driver does), other get
-            // "GET RECORD" reads back the current input line from the
-            // emulated screen when the caller pre-typed it there and
-            // inserted a pending key into CH (this is how the IDE reads
-            // back edited lines), otherwise reads keys from the keyboard.
-            // "GET RECORD" reads back the current input line from the
-            // emulated screen when the caller pre-typed it there and
-            // inserted a pending RETURN key-code into CH (this is how
-            // the IDE reads back edited lines, see editor.bas "Force
-            // ENTER"), otherwise reads keys from the keyboard.
-            // The screen-read continues until the end of the record,
-            // not just for one character.
+            // GET RECORD can read back the screen (pending RETURN or forced
+            // read), or collect a new line from the keyboard first.  Other GET
+            // commands use the keyboard directly.
             int c;
-            if (atari_opt_full_editor && (peek(s, ICCOMZ) == 4 || peek(s, ICCOMZ) == 5) && (editr_get_active || atario_ch_value(s) == 12))
+            int com            = peek(s, ICCOMZ);
+            int full           = atari_opt_full_editor;
+            int get_record     = com == 4 || com == 5;
+            int forced         = peek(s, ICAX1Z) & 0x01;
+            int pending_return = atario_ch_value(s) == 12;
+
+            if (full && get_record && !editr_get_active && !forced && !pending_return)
+            {
+                // Wait for keyboard input and echo it to the screen.
+                editr_type_input(s);
+            }
+
+            if (full && get_record && (editr_get_active || forced || pending_return))
             {
                 if (!editr_get_active)
                     atario_ch_clear(s);
@@ -1071,6 +1407,7 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             }
             else
                 c = atari_get_char();
+
             regs->y = 1;
             if (c == EOF || c < 0)
                 regs->y = 136;
@@ -1079,271 +1416,12 @@ static int sim_EDITR(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
             return 0;
         }
         case DEVR_PUT:
-        {
-            unsigned row    = peek(s, ROWCRS);
-            unsigned col    = dpeek(s, COLCRS);
-            unsigned char c = regs->a;
-            // Simplified "stream" mode: no screen contents are emulated.
-            // The character is passed through to the host output, and only
-            // a crude cursor position is kept so simple guest programs that
-            // read ROWCRS/COLCRS see a sane position. Control characters
-            // other than a few essentials are ignored.
             if (!atari_opt_full_editor)
-            {
-                atari_put_char(c);
-                if (c == 0x9B) // EOL: next row, left margin
-                {
-                    col = peek(s, LMARGN);
-                    if (row < SCR_ROWS - 1)
-                        row++;
-                }
-                else if (c == 0x7D) // clear screen: home the cursor
-                {
-                    row = 0;
-                    col = peek(s, LMARGN);
-                }
-                else if (c == 0x7E) // backspace
-                {
-                    if (col > peek(s, LMARGN))
-                        col--;
-                }
-                else if (c >= 0x1C && c <= 0x1F) // cursor arrows
-                {
-                    if (c == 0x1C && row > 0)
-                        row--;
-                    else if (c == 0x1D && row < SCR_ROWS - 1)
-                        row++;
-                    else if (c == 0x1E && col > peek(s, LMARGN))
-                        col--;
-                    else if (c == 0x1F && col < peek(s, RMARGN))
-                        col++;
-                }
-                else if ((c & 0x7F) < 0x1C || ((c & 0x7F) >= 0x20 && (c & 0x7F) <= 0x7E))
-                {
-                    // Graphical ($00-$1B) and printable ($20-$7E) characters
-                    // advance the cursor (mask bit 7: inverse ATASCII).
-                    col++;
-                    if (col > peek(s, RMARGN))
-                    {
-                        col = peek(s, LMARGN);
-                        if (row < SCR_ROWS - 1)
-                            row++;
-                    }
-                }
-                // Remaining control codes are ignored (with no advance)
-                poke(s, ROWCRS, row);
-                dpoke(s, COLCRS, col);
-                editr_last_row = row;
-                editr_last_col = col;
-                regs->y        = 1;
-                return 0;
-            }
-            editr_cursor_restore(s);
-            // Special characters are consumed by the editor without
-            // advancing the cursor (unless stated otherwise).
-            int advance = 1;
-            // Detect POS changes
-            if (row != editr_last_row || col != editr_last_col)
-            {
-                if (row != editr_last_row)
-                    atari_put_char(0x9B);
-                sim65_dprintf(s, "EDITR position from (%d,%d) to (%d,%d)",
-                              editr_last_row, editr_last_col, row, col);
-            }
-            if (!peek(s, DSPFLG))
-            {
-                // Special characters are interpreted by the editor,
-                // all other characters are printed and advance the cursor.
-                atari_put_char(c);
-
-                // ESC handling: when ESCFLG is set, next char is verbatim
-                if (peek(s, ESCFLG) & 0x80)
-                {
-                    poke(s, ESCFLG, 0);
-                    // Print character verbatim (no control char interpretation).
-                    // The raw ATASCII char is kept in editr_scr; the screen
-                    // RAM cell gets its internal glyph even for $1B-$1F
-                    // (bypassing the control-char filter in editr_sync_pixel).
-                    editr_scr[row * SCR_COLS + col] = c;
-                    editr_sync_pixel(s, row, col);
-                    if (col >= peek(s, RMARGN))
-                    {
-                        editr_ret_wrap(s, &row, &col);
-                        advance = 0;
-                    }
-                }
-                else
-                    switch (c)
-                    {
-                        case 0x9B: // end of line
-                            // EOL starts a new logical line (not extending).
-                            // Cursor stays at the left margin (no advance).
-                            editr_ret(s, &row, &col);
-                            advance = 0;
-                            break;
-                        case 0x7D: // clear screen and home the cursor
-                            // The real hardware clears the screen and puts
-                            // the cursor in the upper left corner (left
-                            // margin, top row).
-                            editr_scr_clear(s);
-                            row = 0;
-                            col = peek(s, LMARGN);
-                            // LOGCOL resets with the cursor position (CHM).
-                            poke(s, LOGCOL, peek(s, LMARGN));
-                            advance = 0;
-                            break;
-                        case 0x7E: // backspace: delete char left of cursor
-                            if (col > peek(s, LMARGN))
-                            {
-                                col--;
-                                editr_scr_del(s, row, col);
-                            }
-                            advance = 0;
-                            break;
-                        case 0x1C: // move cursor up
-                            advance = 0;
-                            if (row > 0)
-                                row--;
-                            break;
-                        case 0x1D: // move cursor down
-                            advance = 0;
-                            if (row < SCR_ROWS - 1)
-                                row++;
-                            break;
-                        case 0x1E: // move cursor left
-                            advance = 0;
-                            if (col > peek(s, LMARGN))
-                                col--;
-                            break;
-                        case 0x1F: // move cursor right
-                            advance = 0;
-                            if (col < peek(s, RMARGN))
-                                col++;
-                            break;
-                        case 0x1B: // ESC: set ESCFLG, next char printed verbatim
-                            if (atari_opt_full_editor)
-                                poke(s, ESCFLG, 0x80);
-                            advance = 0;
-                            break;
-                        case 0x7F: // TAB: move cursor to next tab stop
-                            if (atari_opt_full_editor)
-                            {
-                                unsigned next_tab = col + 1;
-                                while (next_tab < SCR_COLS && !tabmap_get(s, next_tab))
-                                    next_tab++;
-                                if (next_tab < SCR_COLS)
-                                    col = next_tab;
-                            }
-                            advance = 0;
-                            break;
-                        case 0x9E: // CLEAR TAB at cursor column
-                            if (atari_opt_full_editor)
-                                tabmap_set(s, col, 0);
-                            advance = 0;
-                            break;
-                        case 0x9F: // SET TAB at cursor column
-                            if (atari_opt_full_editor)
-                                tabmap_set(s, col, 1);
-                            advance = 0;
-                            break;
-                        case 0x9C: // delete line
-                            // Delete the whole logical line: starting at the
-                            // row where it begins, delete continuation rows
-                            // until the (new) current row starts a new
-                            // logical line (matches the ROM's DLN loop).
-                            while (row > 0 && !logmap_get(s, row))
-                                row--;
-                            if (atari_opt_full_editor)
-                            {
-                                do
-                                {
-                                    editr_scr_del_line(s, row);
-                                    logmap_shift_up(s, row);
-                                } while (!logmap_get(s, row));
-                            }
-                            else
-                                editr_scr_del_line(s, row);
-                            col     = peek(s, LMARGN);
-                            advance = 0;
-                            break;
-                        case 0x9D: // insert line
-                            editr_scr_ins_line(s, row);
-                            if (atari_opt_full_editor)
-                                logmap_shift_down(s, row);
-                            advance = 0;
-                            break;
-                        case 0xFE: // delete character at cursor
-                            if (atari_opt_full_editor)
-                                editr_del_logical(s, row, col);
-                            else
-                                editr_scr_del(s, row, col);
-                            advance = 0;
-                            break;
-                        case 0xFF: // insert character at cursor
-                            if (atari_opt_full_editor)
-                                editr_ins_logical(s, row, col);
-                            else
-                                editr_scr_ins(s, row, col);
-                            advance = 0;
-                            break;
-                        default:
-                            // Bell ($FD): no-op for simulation
-                            // $00-$1A are graphical chars (displayed).
-                            // $9B is EOL (consumed, not displayed).
-                            // $1B-$1F are control chars (consumed, not displayed).
-                            if (c != 0xFD && c != 0x9B && !(c >= 0x1C && c <= 0x1F))
-                            {
-                                editr_scr_put(s, row, col, c);
-                                if (col >= peek(s, RMARGN))
-                                {
-                                    // Wrap: character extends the logical line
-                                    editr_ret_wrap(s, &row, &col);
-                                    advance = 0;
-                                }
-                            }
-                            else
-                                advance = 0;
-                            break;
-                    }
-            }
+                editr_put_stream(s, regs->a);
             else
-            {
-                // DSPFLG set: print all characters verbatim
-                atari_put_char(c);
-                if (c == 0x9B)
-                {
-                    col = peek(s, LMARGN);
-                    if (row < SCR_ROWS - 1)
-                        row++;
-                    else
-                        editr_scr_del_line(s, 0);
-                }
-                else
-                {
-                    editr_scr_put(s, row, col, c);
-                    if (col >= peek(s, RMARGN))
-                    {
-                        col = peek(s, LMARGN);
-                        if (row < SCR_ROWS - 1)
-                            row++;
-                        else
-                            editr_scr_del_line(s, 0);
-                    }
-                    else
-                        col++;
-                }
-                advance = 0; // already handled above
-            }
-            if (advance)
-                col++;
-            dpoke(s, COLCRS, col);
-            poke(s, ROWCRS, row);
-            editr_last_row = row;
-            editr_last_col = col;
-            editr_cursor_update(s, row, col);
+                editr_put_char(s, regs->a, 1);
             regs->y = 1;
             return 0;
-        }
         case DEVR_STATUS:
             sim65_dprintf(s, "EDITR cmd STATUS");
             return 0;
