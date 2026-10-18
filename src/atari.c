@@ -129,10 +129,32 @@ static int sim_RTCLOK(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     return 0;
 }
 
+// Emulated keyboard code register, CH ($2FC):
+// holds the last pressed key as a key-code, $FF if none. This is callback
+// backed: reads pull (and translate) characters from the input stream,
+// writes store an explicit value from the running program.
+static int ch_read  = 0;
+static int ch_value = 0xFF;
+
+int atario_ch_value(sim65 s)
+{
+    (void)s;
+    // Only the current explicit or translated value, without pulling new
+    // characters from the input stream.
+    return ch_value;
+}
+
+void atario_ch_clear(sim65 s)
+{
+    (void)s;
+    // Drop any pending value without consuming the character that could
+    // have been read from the input stream to produce it.
+    ch_value = 0xFF;
+    ch_read  = 0;
+}
+
 static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
 {
-    static int read            = 0;
-    static int ch              = 0xFF;
     static uint8_t kcodes[128] = {
         // ;     A     B     C     D     E     F     G     H     I     J     K     L     M     N     O
         0xA0, 0xBF, 0x95, 0x92, 0xBA, 0xAA, 0xB8, 0xBD, 0xB9, 0x8d, 0x81, 0x85, 0x80, 0xA5, 0xA3, 0x88,
@@ -155,8 +177,8 @@ static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
     if (data == sim65_cb_read)
     {
         // Return value if we have one
-        if (ch != 0xFF)
-            return ch;
+        if (ch_value != 0xFF)
+            return ch_value;
         // Else, see if we have a character available
         int c = atari_peek_char();
         if (c == EOF)
@@ -164,24 +186,24 @@ static int sim_CH(sim65 s, struct sim65_reg *regs, unsigned addr, int data)
         else
         {
             // Mark as read
-            read = 1;
+            ch_read = 1;
             // Translate to key-code
             if (c == 0x9B)
-                ch = 0x0C;
+                ch_value = 0x0C;
             else
-                ch = kcodes[c & 0x7F];
+                ch_value = kcodes[c & 0x7F];
         }
-        return ch;
+        return ch_value;
     }
     else
     {
         // Simply write over our internal value
-        ch = data;
+        ch_value = data;
         // If we are clearing last character, consume a character read before
-        if (ch == 0xFF && read)
+        if (ch_value == 0xFF && ch_read)
         {
             atari_get_char();
-            read = 0;
+            ch_read = 0;
         }
     }
     return 0;
@@ -535,6 +557,8 @@ void atari_init(sim65 s, emu_options *opts)
 {
     // Init flags
     atari_flags = opts ? opts->flags : 0;
+    // Full E: editor emulation is the default, unless disabled
+    atari_opt_full_editor = 0 == (atari_flags & atari_opt_no_editor);
     // Init callbacks
     if (opts && opts->get_char)
         atari_get_char = opts && opts->get_char ? opts->get_char : sys_get_char;
@@ -743,6 +767,10 @@ int atari_add_option(emu_options *opt, const char *str)
             opt->flags |= atari_opt_atari_mathpack;
         else if (!strncasecmp("fastmath", p, n))
             opt->flags &= ~atari_opt_atari_mathpack;
+        else if (!strncasecmp("editor", p, n))
+            opt->flags &= ~atari_opt_no_editor;
+        else if (!strncasecmp("noeditor", p, n))
+            opt->flags |= atari_opt_no_editor;
         else
             return 1;
         p = e + (0 != *e);

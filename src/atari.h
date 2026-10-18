@@ -29,7 +29,9 @@ enum atari_opts_flags
     // Flag for real-time or cycle based time
     atari_opt_cycletime = 4,
     // Flag for using the original Atari math pack
-    atari_opt_atari_mathpack = 8
+    atari_opt_atari_mathpack = 8,
+    // Flag for using the simple E: stream mode (no editor emulation)
+    atari_opt_no_editor = 16
 };
 
 typedef struct
@@ -62,3 +64,17 @@ void atari_dos_add_cmdline(sim65 s, const char *cmd);
 void atari_dos_set_root(sim65 s, const char *path);
 // Get current emulation flags
 int atari_get_flags(sim65 s);
+// Current value of the keyboard register CH ($2FC), $FF if none pending.
+// Reads the value stored by the emulation or an explicit program write,
+// without consuming any character from the input stream.
+int atario_ch_value(sim65 s);
+// Clears the pending keyboard code, without consuming characters from
+// the input stream.
+void atario_ch_clear(sim65 s);
+// Read a character from the emulated screen buffer (row 0..23, col 0..39).
+unsigned char atari_screen_get(int row, int col);
+// Get the current E: cursor position (row 0..23, col 0..39).
+void atario_cursor_get(int *row, int *col);
+
+// Full editor mode flag (default on; disable with -o noeditor)
+extern int atari_opt_full_editor;

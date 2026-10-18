@@ -25,6 +25,10 @@ void atari_cio_init(sim65 s, int emu_dos);
 // Adds an entry to the device handler table
 int atari_cio_add_hatab(sim65 s, char name, uint16_t address);
 
+// Returns the character at the given position of the emulated text screen,
+// as written through the "E:" device (raw ATASCII, includes inverse bit).
+unsigned char atari_screen_get(int row, int col);
+
 extern int (*atari_get_char)(void);  /* Reads a character from standard input */
 extern int (*atari_peek_char)(void); /* See if there is a character available to read */
 extern void (*atari_put_char)(int);  /* Put a character to standard output */

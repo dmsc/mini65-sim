@@ -56,7 +56,10 @@ static void print_help(void)
                     " realtime  : Base time on real elapsed times (default)\n"
                     " cycletime : Base time on number of CPU cycles\n"
                     " fastmath  : Use Altirra fast math pack (default)\n"
-                    " atarimath : Use original Atari math pack\n",
+                    " atarimath : Use original Atari math pack\n"
+                    " editor    : Full E: editor emulation (logical lines, tab stops,\n"
+                    "             ESC handling, screen RAM write-through) (default)\n"
+                    " noeditor  : Simple E: stream mode; no editing, no screen emulation\n",
             prog_name);
 }
 
