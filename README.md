@@ -8,7 +8,9 @@ It simulates a subset of the Atari BIOS and includes the Floating Point
 package from the Altirra emulator for maximum compatibility.
 
 Currently, the emulated calls are:
-- CIO `E:` device, inputs from standard input and outputs to standard output.
+- CIO `E:` full Atari editor emulation: 40x24 screen, logical lines,
+  wrapping, cursor/margins, tab stops, insert/delete, scrolling and screen
+  readback.  A streaming mode is also available with `-o noeditor`.
 - DOS `D:` device, implements file reading and writing to the host
   file-system.
 - CIO `K:` device, implements character input from the console.
