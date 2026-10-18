@@ -45,6 +45,18 @@ static unsigned editr_get_col     = 0;
 static unsigned editr_get_end_row = 0;
 static unsigned editr_get_end_col = 0;
 
+// Input state for a line being typed through E: GET RECORD.
+static int editr_input_active         = 0;
+static int editr_get_buffered         = 0;
+static unsigned editr_input_start_row = 0;
+static unsigned editr_input_start_col = 0;
+static unsigned char editr_input_buf[128];
+static unsigned editr_input_len = 0;
+static unsigned editr_input_pos = 0;
+
+static void editr_cursor_restore(sim65 s);
+static void editr_cursor_update(sim65 s, unsigned row, unsigned col);
+
 static int logmap_get(sim65 s, unsigned row);
 
 // Find the last non-blank character in the logical line starting at the
@@ -106,6 +118,42 @@ static void editr_get_begin(sim65 s)
     editr_get_begin_at(s, peek(s, ROWCRS), dpeek(s, COLCRS));
 }
 
+// Snapshot a typed input line before RETURN performs EOL/scroll processing.
+// The snapshot is what E: GET RECORD subsequently returns.
+static void editr_input_finalize(sim65 s)
+{
+    unsigned row, col;
+    unsigned len = 0;
+
+    if (!editr_input_active)
+        return;
+    editr_get_begin_at(s, editr_input_start_row, editr_input_start_col);
+    row = editr_get_row;
+    col = editr_get_col;
+    if (!editr_get_empty)
+    {
+        while (1)
+        {
+            if (row > editr_get_end_row || (row == editr_get_end_row && col > editr_get_end_col))
+                break;
+            if (len + 1 < sizeof(editr_input_buf))
+                editr_input_buf[len++] = atari_screen_get(row, col);
+            col++;
+            if (col > (unsigned)peek(s, RMARGN))
+            {
+                col = peek(s, LMARGN);
+                row++;
+            }
+        }
+    }
+    editr_input_buf[len++] = 0x9B;
+    editr_input_len        = len;
+    editr_input_pos        = 0;
+    editr_get_buffered     = 1;
+    editr_input_active     = 0;
+    editr_get_active       = 1;
+}
+
 // Returns next character of the current input record from the screen,
 // starting at the current cursor position and ending at the last
 // non-blank character of the logical line.
@@ -114,8 +162,22 @@ static int editr_get_record(sim65 s)
     unsigned row, col;
     int c;
 
+    if (editr_get_buffered)
+    {
+        c = editr_input_buf[editr_input_pos++];
+        if (c == 0x9B)
+        {
+            editr_get_buffered = 0;
+            editr_get_active   = 0;
+        }
+        return c;
+    }
+
     if (!editr_get_active)
     {
+        // Remove a visible cursor before scanning the line; the returned
+        // record must contain the underlying character, not the cursor glyph.
+        editr_cursor_restore(s);
         editr_get_begin(s);
         editr_get_active = 1;
         sim65_dprintf(s, "GETREC start (%u,%u) end=(%u,%u)%s",
@@ -125,6 +187,7 @@ static int editr_get_record(sim65 s)
     if (editr_get_empty)
     {
         editr_get_active = 0;
+        editr_cursor_update(s, peek(s, ROWCRS), dpeek(s, COLCRS));
         return 0x9B;
     }
 
@@ -133,6 +196,7 @@ static int editr_get_record(sim65 s)
     if (row > editr_get_end_row || (row == editr_get_end_row && col > editr_get_end_col))
     {
         editr_get_active = 0;
+        editr_cursor_update(s, peek(s, ROWCRS), dpeek(s, COLCRS));
         return 0x9B;
     }
 
@@ -170,25 +234,38 @@ static unsigned char atascii_to_internal(unsigned char c)
     return (c & 0x9F) | taic_table[(c >> 5) & 3];
 }
 
+// Inverse of atascii_to_internal().  The mapping swaps/inverts bits 6 and 5.
+static unsigned char internal_to_atascii(unsigned char c)
+{
+    unsigned char b5 = (c >> 5) & 1;
+    unsigned char b6 = (c >> 6) & 1;
+    return (c & 0x9F) | (b5 << 6) | ((b5 ^ b6 ^ 1) << 5);
+}
+
 // Restore the character under the cursor, undoing the cursor glyph (bit 7).
-// Mirrors the ROM ROD: if OLDADR (page > 0) is set, the character under it is
-// re-synced from editr_scr, clearing any cursor glyph drawn there.
+// Mirrors the ROM ROD: if OLDADR (page > 0) is set, restore OLDCHR both to the
+// editor buffer and to screen RAM.
 static void editr_sync_pixel(sim65 s, unsigned row, unsigned col);
 static void editr_cursor_restore(sim65 s)
 {
     if (!atari_opt_full_editor)
         return;
     unsigned oldaddr = dpeek(s, OLDADR);
-    if (HI(oldaddr) == 0)
-        return; // ROM ROD: skip while OLDADR is in page zero
-    unsigned offset = oldaddr - dpeek(s, SAVMSC);
+    unsigned screen  = dpeek(s, SAVMSC);
+    if (HI(oldaddr) == 0 || oldaddr < screen)
+        return; // ROM ROD: skip while OLDADR is in page zero/invalid
+    unsigned offset = oldaddr - screen;
+    if (offset >= SCR_ROWS * SCR_COLS)
+        return;
+    unsigned char c   = internal_to_atascii(peek(s, OLDCHR));
+    editr_scr[offset] = c;
     editr_sync_pixel(s, offset / SCR_COLS, offset % SCR_COLS);
 }
 
 // Update the cursor to (row,col) and, if CRSINH allows, draw the cursor glyph
-// (OLDCHR ^ $80) into screen RAM at the new cursor address.
+// (OLDCHR ^ $80) into both the editor buffer and screen RAM.
 // Mirrors the ROM SEC_: OLDADR/OLDCHR are always updated (via CCA/GDC); the
-// inverse-video cursor is only written to screen memory when CRSINH == 0.
+// inverse-video cursor is only written when CRSINH == 0.
 static void editr_cursor_update(sim65 s, unsigned row, unsigned col)
 {
     if (!atari_opt_full_editor)
@@ -205,8 +282,9 @@ static void editr_cursor_update(sim65 s, unsigned row, unsigned col)
     // cursor inhibit flag is set, skip drawing).
     if (peek(s, CRSINH) != 0)
         return;
-    // Cursor glyph is the inverse of the character under the cursor
-    poke(s, addr, atascii_to_internal(c) | 0x80);
+    // Cursor glyph is the inverse of the character under the cursor.
+    editr_scr[row * SCR_COLS + col] = c ^ 0x80;
+    editr_sync_pixel(s, row, col);
 }
 
 // Sync a single pixel from editr_scr to actual 6502 screen RAM at SAVMSC.
@@ -379,7 +457,11 @@ void atario_cursor_get(int *row, int *col)
 static void editr_scr_clear(sim65 s)
 {
     memset(editr_scr, ' ', sizeof(editr_scr));
-    editr_get_active = 0;
+    dpoke(s, OLDADR, 0);
+    poke(s, OLDCHR, 0);
+    editr_get_active   = 0;
+    editr_get_buffered = 0;
+    editr_input_active = 0;
     logmap_init(s);
     editr_sync_all(s);
 }
@@ -553,22 +635,24 @@ static void editr_put_char(sim65 s, unsigned char c, int echo_host);
 
 static int editr_type_input(sim65 s)
 {
-    unsigned start_row = peek(s, ROWCRS);
-    unsigned start_col = dpeek(s, COLCRS);
     int c;
+
+    editr_input_start_row = peek(s, ROWCRS);
+    editr_input_start_col = dpeek(s, COLCRS);
+    editr_input_active    = 1;
 
     for (;;)
     {
         c = atari_get_char();
         if (c == EOF || c < 0)
+        {
+            editr_input_active = 0;
             return 0;
+        }
         editr_put_char(s, (unsigned char)c, 0);
         if (c == 0x9B)
             break;
     }
-
-    editr_get_begin_at(s, start_row, start_col);
-    editr_get_active = 1;
     return 1;
 }
 
@@ -674,6 +758,8 @@ static void editr_put_char(sim65 s, unsigned char c, int echo_host)
                     // EOL starts a new logical line (not extending).
                     // Cursor stays at the left margin (no advance).
                     // EOL cannot be escaped; it also ends the escape.
+                    if (editr_input_active)
+                        editr_input_finalize(s);
                     poke(s, ESCFLG, 0);
                     editr_ret(s, &row, &col);
                     advance = 0;
